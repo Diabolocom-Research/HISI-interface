@@ -57,20 +57,20 @@ class WhisperStreamHandler(StreamHandler):
                                              target_sr=self.online.SAMPLING_RATE)
 
         audio_float32 = np.asarray(audio_float32).flatten()
-        self.pending = np.concatenate([self.pending, audio_float32])
+        # self.pending = np.concatenate([self.pending, audio_float32])
+        self.online.insert_audio_chunk(audio_float32)
 
-    def emit(self) -> tuple[None, AdditionalOutputs | None] | None:
-        # This type hint indicates it can return a tuple, or just None if no update at all.
-        # For send-receive with AdditionalOutputs, always returning the tuple is safer.
+    def old_emit(self):
+        """
+        This is not used anymore. I am keeping this just to make sure everything works
+        Note that if you want to use this you would also need to uncomment the self.pending line in receive and change whisper_online file too!
+        """
+
         needed_samples = int(self.min_chunk * self.input_sample_rate)  # self.input_sample_rate is from super()
 
         if len(self.pending) < needed_samples:
             # logging.debug("Emit: Not enough pending audio. Returning (None, None).")
             return None, AdditionalOutputs(self.accumulated_transcript)  # No audio frame to send back, no additional output update
-
-        # Optional: first‐chunk guard to wait for a slightly larger initial chunk
-        # if self.is_first and len(self.pending) < (needed_samples * 1.5): # e.g., wait for 1.5x min_chunk initially
-        #     return (None, None)
 
         self.is_first = False
 
@@ -83,16 +83,6 @@ class WhisperStreamHandler(StreamHandler):
         # process_iter() in your whisper_online returns (beg_timestamp, end_timestamp, "text")
         _beg, _end, text_segment = self.online.process_iter()
 
-        # chunk_dur = len(chunk_to_process) / self.online.SAMPLING_RATE
-        #
-        # # choose a valid drop‐time
-        # # if _end is not None:
-        # #     drop_time = _end
-        # # else:
-        # #     drop_time = self.online.buffer_time_offset + chunk_dur
-        # #
-        # # # now drop that audio from Whisper’s buffer
-        # # self.online.chunk_at(drop_time)
 
         if text_segment:  # text_segment is a string
             # logging.debug(f"Emit: Text segment found: '{text_segment}'. Returning AdditionalOutputs.")
@@ -101,6 +91,17 @@ class WhisperStreamHandler(StreamHandler):
             return None, AdditionalOutputs(self.accumulated_transcript)  # Audio frame is None, AdditionalOutputs has the text
 
         # logging.debug("Emit: No text segment from process_iter. Returning (None, None).")
+
+    def emit(self) -> tuple[None, AdditionalOutputs | None] | None:
+
+        _beg, _end, text_segment = self.online.process_iter()
+
+        if text_segment:  # text_segment is the newly committed delta
+            if self.accumulated_transcript:
+                self.accumulated_transcript += " " + text_segment
+            else:
+                self.accumulated_transcript = text_segment
+
         return (None, AdditionalOutputs(self.accumulated_transcript))  # No audio frame, no additional output update
 
     def copy(self):

@@ -300,6 +300,14 @@ class OnlineASRProcessor:
         # if buffered_sec < self.min_chunk_sec:
         #     return (None, None, "")
 
+        buffered_sec = len(self.audio_buffer) / self.SAMPLING_RATE
+        if buffered_sec < self.min_chunk_sec:
+            # logger.debug(
+            #     f"OnlineASRProcessor: Buffer {buffered_sec:.2f}s < min_chunk_sec {self.min_chunk_sec:.2f}s. Waiting for more audio.")
+            return (None, None, "")  # Not enough audio yet
+        # --- MODIFICATION END ---
+
+
         prompt, non_prompt = self.prompt()
         logger.debug(f"PROMPT: {prompt}")
         logger.debug(f"CONTEXT: {non_prompt}")
