@@ -77,7 +77,7 @@ Also In whisper_online.py, inside add_shared_args function
 If MyCustomASR requires specific configurations (e.g., a path to a unique model config file, special thresholds), add them to the add_shared_args function in whisper_online.py.
 Python
 
-# In whisper_online.py, inside add_shared_args function
+In whisper_online.py, inside add_shared_args function
 
     # ... existing arguments ...
     parser.add_argument('--my-custom-asr-config', type=str, default=None,
@@ -86,9 +86,7 @@ Python
                         help='A custom threshold for MyCustomASR.')
 
 Then, in asr_factory, you can access these:
-Python
-
-# In asr_factory, when instantiating MyCustomASR:
+In asr_factory, when instantiating MyCustomASR:
         asr = MyCustomASR(
             # ... other args ...
             logfile=logfile,
@@ -96,7 +94,7 @@ Python
             custom_threshold=args.my_custom_asr_threshold
         )
 
-# And in MyCustomASR.__init__:
+And in MyCustomASR.__init__:
 class MyCustomASR(ASRBase):
     def __init__(self, ..., custom_config_path=None, custom_threshold=None, **kwargs):
         super().__init__(..., **kwargs) # Make sure to pass through other standard args
@@ -105,6 +103,8 @@ class MyCustomASR(ASRBase):
         # ... rest of your init, using these values
 
 Remember to pass these through ASRBase.__init__ using **kwargs if ASRBase doesn't explicitly define them, or add them to ASRBase.__init__ if they are general enough. Usually, passing via **kwargs to MyCustomASR.__init__ is cleaner.
+
+
 4. (Optional) Update Gradio UI (app.py)
 
 If you want to select "my_custom_asr" or configure its specific parameters from the Gradio UI in app.py:
