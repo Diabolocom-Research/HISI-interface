@@ -12,6 +12,7 @@ import argparse
 import logging
 import numpy as np
 import gradio as gr
+import time
 import pandas as pd
 import librosa
 import librosa.display
@@ -227,7 +228,8 @@ class SmartWhisperHandler(StreamHandler):
         return None, AdditionalOutputs(
             self.accumulated_transcript,
             self.full_audio.copy(),
-            current_segments_for_df  # Pass only the newest segment(s) from this iteration for table/timeline
+            list(self.segments)
+            # current_segments_for_df  # Pass only the newest segment(s) from this iteration for table/timeline
         )
 
     def copy(self):
@@ -288,11 +290,146 @@ def main_gradio_app():
 
     master_handler_reference = SmartWhisperHandler(asr_components_store)
 
-    def setup_and_start_asr(chosen_model_name: str, chosen_language: str):  # Added lang and task
+    def transcribe_file_in_chunks(audio_file, progress=gr.Progress()):
+        import librosa
+        import numpy as np
+        import time
+
+        if not audio_file:
+            yield "No file uploaded.", None, [], 0, pd.DataFrame(columns=["start", "end", "text"]), None, None
+            return
+
+        # Load audio file
+        audio, sr = librosa.load(audio_file, sr=asr_components_store["sample_rate"])
+        chunk_sec = 1  # 1 seconds per chunk
+        chunk_size = int(sr * chunk_sec)
+        transcript = ""
+        n_chunks = int(np.ceil(len(audio) / chunk_size))
+
+        # Use a fresh handler for file transcription
+        handler = SmartWhisperHandler(asr_components_store)
+        for i in range(n_chunks):
+            start = i * chunk_size
+            end = min((i + 1) * chunk_size, len(audio))
+            chunk = audio[start:end]
+            handler.receive((sr, (chunk * 32767).astype(np.int16)))
+            _, additional = handler.emit()
+            chunk_text = additional.args[0]
+            # # Only add new text if it's not already in transcript
+            # if chunk_text and not chunk_text.startswith(transcript):
+            #     transcript += chunk_text[len(transcript):]
+            # # progress((i + 1) / n_chunks, desc=f"Processing chunk {i+1}/{n_chunks}")
+            segments = additional.args[2]
+            transcript = chunk_text
+            timeline_data = build_timeline_from_additional_outputs(segments, [])
+            duration_ms = int((end / sr) * 1000)
+            if segments:
+                df = pd.DataFrame(segments)[["start", "end", "text"]]
+            else:
+                df = pd.DataFrame(columns=["start", "end", "text"])
+
+            # --- Mel Spectrogram for audio so far ---
+            try:
+                audio_so_far = audio[:end]
+                n_fft = min(2048, len(audio_so_far))
+                hop_length = n_fft // 4
+                if len(audio_so_far) >= n_fft:
+                    S = librosa.feature.melspectrogram(y=audio_so_far, sr=sr, n_mels=128, fmax=8000, n_fft=n_fft,
+                                                       hop_length=hop_length)
+                    S_db = librosa.power_to_db(S, ref=np.max)
+                    fig1, ax1 = plt.subplots(figsize=(6, 2))
+                    librosa.display.specshow(S_db, x_axis="time", y_axis="mel", sr=sr, ax=ax1)
+                    ax1.set_title("Mel Spectrogram")
+                    plt.tight_layout()
+                    mel_fig = fig1
+                    plt.close(fig1)
+                else:
+                    mel_fig = None
+
+            except Exception as e:
+                mel_fig = None
+
+            # --- Waveform plot for audio so far ---
+            try:
+                fig2, ax2 = plt.subplots(figsize=(6, 1.5))
+                librosa.display.waveshow(audio_so_far, sr=sr, ax=ax2, axis='time', linewidth=0.5)
+                ax2.set_title("Waveform")
+                plt.tight_layout()
+                waveform_fig = fig2
+                plt.close(fig2)
+            except Exception as e:
+                waveform_fig = None
+
+            yield transcript, (
+            sr, (chunk * 32767).astype(np.int16)), timeline_data, duration_ms, df, mel_fig, waveform_fig
+            time.sleep(0.05)
+
+        # --- Flush any remaining transcript after all chunks ---
+        _, additional = handler.emit()
+        final_text = additional.args[0]
+        segments = additional.args[2]
+        timeline_data = build_timeline_from_additional_outputs(segments, [])
+        duration_ms = int((len(audio) / sr) * 1000)
+        if segments:
+            df = pd.DataFrame(segments)[["start", "end", "text"]]
+        else:
+            df = pd.DataFrame(columns=["start", "end", "text"])
+
+        # --- Mel Spectrogram for audio so far ---
+        try:
+            audio_so_far = audio[:end]
+            n_fft = min(2048, len(audio_so_far))
+            hop_length = n_fft // 4
+            if len(audio_so_far) >= n_fft:
+                S = librosa.feature.melspectrogram(y=audio_so_far, sr=sr, n_mels=128, fmax=8000, n_fft=n_fft,
+                                                   hop_length=hop_length)
+                S_db = librosa.power_to_db(S, ref=np.max)
+                fig1, ax1 = plt.subplots(figsize=(6, 2))
+                librosa.display.specshow(S_db, x_axis="time", y_axis="mel", sr=sr, ax=ax1)
+                ax1.set_title("Mel Spectrogram")
+                plt.tight_layout()
+                mel_fig = fig1
+                plt.close(fig1)
+            else:
+                mel_fig = None
+        except Exception as e:
+            mel_fig = None
+
+        # --- Waveform plot for audio so far ---
+        try:
+            fig2, ax2 = plt.subplots(figsize=(6, 1.5))
+            librosa.display.waveshow(audio_so_far, sr=sr, ax=ax2, axis='time', linewidth=0.5)
+            ax2.set_title("Waveform")
+            plt.tight_layout()
+            waveform_fig = fig2
+            plt.close(fig2)
+        except Exception as e:
+            waveform_fig = None
+
+        if final_text and final_text != transcript:
+            yield final_text, (
+            sr, (audio * 32767).astype(np.int16)), timeline_data, duration_ms, df, mel_fig, waveform_fig
+
+    def setup_and_start_asr(chosen_model_name: str, chosen_language: str,
+                            progress=gr.Progress()):  # Added lang and task
         global asr_components_store
 
         logging.info(f"Setting up ASR with model: {chosen_model_name}, lang: {chosen_language}")
 
+        progress(0.2, desc="Starting ASR setup...")
+        # time.sleep(0.5)  # Simulate some processing time
+
+        yield (
+            gr.update(visible=False),  # model_selection_col
+            gr.update(visible=True),  # loading_col
+            gr.update(visible=False),  # main_app_col
+            "Starting ASR setup...",
+            "Loading model...", None, None, None, pd.DataFrame(columns=["start", "end", "text"]),
+            build_timeline_from_additional_outputs([], []), 0, gr.update(interactive=False)
+        )
+
+        progress(0.4, desc="Parsing configuration...")
+        # time.sleep(0.5)  # Simulate some processing time
         current_processing_args = get_args()  # Get a base set of args
         current_processing_args.model = chosen_model_name
         current_processing_args.lan = chosen_language
@@ -311,23 +448,34 @@ def main_gradio_app():
         asr_components_store["current_config_id"] = None
         asr_components_store["tokenizer_object"] = None
 
+        progress(0.7, desc="Loading ASR model weights...")
         try:
             asr_object_instance, _initial_online_proc = asr_factory(current_processing_args, logfile=sys.stderr)
+            progress(0.8, desc="Model loaded. Preparing warmup (if needed)...")
+            yield (
+                gr.update(visible=False),
+                gr.update(visible=True),
+                gr.update(visible=False),
+                "Model loaded. Preparing warmup...",
+                "Loading...", None, None, None, pd.DataFrame(columns=["start", "end", "text"]),
+                build_timeline_from_additional_outputs([], []), 0, gr.update(interactive=False)
+            )
             # We don't use _initial_online_proc; SmartWhisperHandler instances create their own.
         except Exception as e:
             logging.error(
-                f"Failed to load ASR model {chosen_model_name} (lang: {chosen_language}, task: {chosen_task}): {e}",
+                f"Failed to load ASR model {chosen_model_name} (lang: {chosen_language}, task:): {e}",
                 exc_info=True)
-            gr.Warning(f"Failed to load model {chosen_model_name} (lang: {chosen_language}, task: {chosen_task}): {e}")
+            gr.Warning(f"Failed to load model {chosen_model_name} (lang: {chosen_language}, task:): {e}")
             return (
                 gr.update(visible=True), gr.update(visible=False),
                 f"Error loading model: {e}", None, None, None, None,
                 build_timeline_from_additional_outputs([], []), 0, gr.update(interactive=True)
-            # Pass empty list for timeline
+                # Pass empty list for timeline
             )
 
         if current_processing_args.warmup_file and os.path.exists(current_processing_args.warmup_file):
             try:
+                progress(0.5, desc="Warming up model with audio file...")
                 logging.info(f"Warming up model {chosen_model_name} with {current_processing_args.warmup_file}...")
                 w = load_audio_chunk(current_processing_args.warmup_file, 0, 1)  # Load 1 sec
                 asr_object_instance.transcribe(w)  # Transcribe on the base asr object
@@ -338,6 +486,7 @@ def main_gradio_app():
             logging.warning(f"Warmup file not found: {current_processing_args.warmup_file}")
 
         # Create tokenizer (mirroring logic from asr_factory in whisper_online.py)
+        progress(0.6, desc="Creating tokenizer (if needed)...")
         created_tokenizer = None
         if current_processing_args.buffer_trimming == "sentence":
             effective_lang_for_tokenizer = asr_object_instance.original_language  # This should be the resolved language
@@ -358,13 +507,15 @@ def main_gradio_app():
                         f"Failed to create tokenizer for lang {effective_lang_for_tokenizer}: {e}. Proceeding without specific sentence tokenizer.",
                         exc_info=True)
 
+        progress(0.8, desc="Finalizing ASR session setup...")
+        time.sleep(0.5)  # Simulate some final processing time
         # Update the shared store
         asr_components_store["asr_object"] = asr_object_instance
         asr_components_store["language"] = current_processing_args.lan  # The --lan argument (can be "auto")
         asr_components_store["task"] = current_processing_args.task
         asr_components_store["min_chunk_sec"] = current_processing_args.min_chunk_size
         asr_components_store["buffer_trimming_config"] = (
-        current_processing_args.buffer_trimming, current_processing_args.buffer_trimming_sec)
+            current_processing_args.buffer_trimming, current_processing_args.buffer_trimming_sec)
         asr_components_store["tokenizer_object"] = created_tokenizer
         asr_components_store["use_vac"] = current_processing_args.vac
 
@@ -374,17 +525,28 @@ def main_gradio_app():
         asr_components_store["is_ready"] = True
 
         logging.info(f"Shared ASR store updated. Config ID: {config_identifier}")
-
-        return (
-            gr.update(visible=False), gr.update(visible=True),
-            "Speak to see transcript...", None, None, None,
-            pd.DataFrame(columns=["start", "end", "text"]),
-            build_timeline_from_additional_outputs([], []), 0, gr.update(interactive=False)
+        progress(1.0, desc="Setup complete!")
+        time.sleep(0.5)
+        yield (
+            gr.update(visible=False),  # model_selection_col
+            gr.update(visible=False),  # loading_col
+            gr.update(visible=True),  # main_app_col
+            "",
+            None, None, None, None, pd.DataFrame(columns=["start", "end", "text"]),
+            build_timeline_from_additional_outputs([], []), 0, gr.update(interactive=True)
         )
 
+        # return (
+        #     gr.update(visible=False), gr.update(visible=True),
+        #     "Speak to see transcript...", None, None, None,
+        #     pd.DataFrame(columns=["start", "end", "text"]),
+        #     build_timeline_from_additional_outputs([], []), 0, gr.update(interactive=False)
+        # )
+
     with gr.Blocks(head=head, css=style_main_app, title="Whisper Real-Time Transcription") as demo:
-        gr.Markdown("## 🎙️ Whisper Real-Time Transcription with Model Selection")
-        audio_duration_state = gr.Number(value=0, visible=False)  # Used by JS for timeline sync
+        # loading column
+        with gr.Column(elem_id="loading_col", visible=False) as loading_col:
+            loading_markdown = gr.Textbox(lines=3, interactive=False, value="Initializing...")
 
         with gr.Column(elem_id="model_selection_col", visible=True) as model_selection_col:
             gr.Markdown("### 1. Configure ASR Session")
@@ -419,9 +581,18 @@ def main_gradio_app():
             start_button = gr.Button("🚀 Start Session", variant="primary")
 
         with gr.Column(elem_id="main_app_col", visible=False) as main_app_col:
-            gr.Markdown("### 2. Live Audio Transcription")
-            with gr.Row():
-                webrtc = WebRTC(label="🎤 Click & Speak", mode="send", modality="audio")
+
+            gr.Markdown("## 🎙️ Whisper Real-Time Transcription with Model Selection")
+            audio_duration_state = gr.Number(value=0, visible=False)  # Used by JS for timeline sync
+
+            with gr.Tabs() as tab_selector:
+                with gr.TabItem("🎤 Record Voice", id="record_tab"):
+                    with gr.Row():
+                        webrtc = WebRTC(label="🎤 Click & Speak", mode="send", modality="audio")
+                with gr.TabItem("📁 Upload Audio File", id="upload_tab"):
+                    with gr.Row():
+                        file_upload = gr.Audio(label="📁 Upload Audio File", type="filepath")
+
             with gr.Row():
                 transcript_text = gr.Textbox(label="📜 Transcript", lines=3, interactive=False, value="Initializing...")
             with gr.Row():
@@ -443,8 +614,8 @@ def main_gradio_app():
                 )
             with gr.Row():
                 mel_plot = gr.Plot(label="📊 Mel Spectrogram")
-                waveform_plot = gr.Plot(label="📈 Waveform")
-            with gr.Row():
+                waveform_plot = gr.Plot(label="📈 Waveform", visible=True)
+            with gr.Row(equal_height=True):
                 segments_table = gr.Dataframe(
                     label="📄 Timestamped Segments", headers=["start", "end", "text"],
                     datatype=["number", "number", "str"], interactive=False
@@ -453,6 +624,14 @@ def main_gradio_app():
             # --- Event Handlers for the main app ---
             webrtc.stream(
                 master_handler_reference, inputs=[webrtc], outputs=[webrtc],
+            )
+
+            file_upload.change(
+                transcribe_file_in_chunks,
+                inputs=file_upload,
+                outputs=[transcript_text, playback_audio, dateless_timeline, audio_duration_state, segments_table,
+                         mel_plot, waveform_plot],
+                queue=True
             )
 
             # This will now receive the full list of segments from SmartWhisperHandler's emit
@@ -493,7 +672,8 @@ def main_gradio_app():
                         else:
                             spec_out = gr.update()
                     except Exception as e:
-                        logging.error(f"Error generating spectrogram: {e}", exc_info=True); spec_out = gr.update()
+                        logging.error(f"Error generating spectrogram: {e}", exc_info=True);
+                        spec_out = gr.update()
 
                     try:  # Waveform
                         fig2, ax2 = plt.subplots(figsize=(6, 1.5))
@@ -503,7 +683,8 @@ def main_gradio_app():
                         wave_out = fig2
                         plt.close(fig2)  # Close to free memory
                     except Exception as e:
-                        logging.error(f"Error generating waveform: {e}", exc_info=True); wave_out = gr.update()
+                        logging.error(f"Error generating waveform: {e}", exc_info=True);
+                        wave_out = gr.update()
 
                     audio_int16 = (audio_array * 32767.0).astype(np.int16)
                     aud_out = (current_sr, audio_int16)
@@ -539,6 +720,7 @@ def main_gradio_app():
             #     self.full_audio.copy(),
             #     list(self.segments) # <--- ensure this is the full list
             # )
+
             webrtc.on_additional_outputs(
                 on_additional_outputs_update,
                 outputs=[
@@ -552,9 +734,18 @@ def main_gradio_app():
             fn=setup_and_start_asr,
             inputs=[model_dropdown, language_dropdown],  # Pass new inputs
             outputs=[
-                model_selection_col, main_app_col,
-                transcript_text, mel_plot, waveform_plot, playback_audio, segments_table,
-                dateless_timeline, audio_duration_state, start_button
+                model_selection_col,  # hidden when loading
+                loading_col,  # shown while loading
+                main_app_col,  # shown after loading
+                loading_markdown,
+                transcript_text,
+                mel_plot,
+                waveform_plot,
+                playback_audio,
+                segments_table,
+                dateless_timeline,
+                audio_duration_state,
+                start_button
             ],
             api_name="start_transcription_session"
         )
@@ -569,6 +760,7 @@ def main_gradio_app():
                 }}
             }}"""
         )
+
         if os.path.exists(js_path):
             audio_duration_state.change(
                 fn=None, inputs=[audio_duration_state], outputs=None,
@@ -593,7 +785,9 @@ if __name__ == "__main__":
             logging.info(f"Created dummy '{fname}'")
 
     app_demo, launch_args = main_gradio_app()
-    app_demo.launch(
-        server_name=launch_args.host, server_port=launch_args.port, share=False,
+    app_demo.queue().launch(
+        server_name=launch_args.host,
+        server_port=launch_args.port,
+        share=False,
         # debug=True # Enable for Gradio specific debugging if needed
     )

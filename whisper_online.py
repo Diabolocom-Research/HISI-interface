@@ -12,6 +12,7 @@ import math
 
 logger = logging.getLogger(__name__)
 
+SAMPLING_RATE = 16000
 
 @lru_cache(10 ** 6)
 def load_audio(fname):
@@ -558,7 +559,7 @@ def add_shared_args(parser):
                         help="Source language code, e.g. en,de,cs, or 'auto' for language detection.")
     parser.add_argument('--task', type=str, default='transcribe', choices=["transcribe", "translate"],
                         help="Transcribe or translate.")
-    parser.add_argument('--backend', type=str, default="faster-whisper",
+    parser.add_argument('--backend', type=str, default="whisper_timestamped",
                         choices=["faster-whisper", "whisper_timestamped", "mlx-whisper", "openai-api"],
                         help='Load only this backend for Whisper processing.')
     parser.add_argument('--vac', action="store_true", default=False,
