@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-time Whisper Transcription</title>
+    <style>
+        :root {
+            --primary-gradient: linear-gradient(135deg, #f9a45c 0%, #e66465 100%);
+            --background-cream: #faf8f5;
+            --text-dark: #2d2d2d;
+            --border-light: #e0e0e0;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            margin: 0; padding: 0; background-color: var(--background-cream);
+            color: var(--text-dark); min-height: 100vh;
+        }
+        .hero { background: var(--primary-gradient); color: white; padding: 2.5rem 2rem; text-align: center; }
+        .container { max-width: 1000px; margin: 1.5rem auto; padding: 0 2rem; }
+        .transcript-container {
+            border-radius: 8px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+            padding: 1.5rem; min-height: 100px; /* Reduced height as segments table is more prominent */
+            overflow-y: auto; margin-bottom: 1.5rem; border: 1px solid var(--border-light);
+        }
+        #transcript-text {
+            margin: 0; padding: 0; line-height: 1.5; font-size: 1.2rem;
+            word-wrap: break-word;
+        }
+        .controls { text-align: center; margin: 1.5rem 0; }
+        button {
+            background: var(--primary-gradient); color: white; border: none;
+            padding: 10px 20px; font-size: 0.95rem; border-radius: 6px; cursor: pointer;
+            transition: all 0.2s ease; font-weight: 500; min-width: 180px;
+        }
+
+        /* --- NEW STYLES FOR THE SEGMENTS TABLE --- */
+        .table-container {
+            max-height: 400px; /* Set a max height for the table */
+            overflow-y: auto;
+            border: 1px solid var(--border-light);
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background-color: white;
+        }
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-light);
+        }
+        thead th {
+            background-color: #f9f9f9;
+            font-weight: 600;
+            position: sticky; /* Make header stick on scroll */
+            top: 0;
+        }
+        tbody tr:last-child td {
+            border-bottom: none;
+        }
+        td:nth-child(1), td:nth-child(2) {
+            font-family: 'Courier New', Courier, monospace;
+            width: 120px; /* Fixed width for time columns */
+        }
+
+    </style>
+</head>
+
+<body>
+    <div id="error-toast" class="toast"></div>
+    <div class="hero">
+        <h1>Real-time Transcription</h1>
+        <p>Powered by FastRTC and a Custom Whisper Backend</p>
+    </div>
+
+    <div class="container">
+        <div class="transcript-container" id="transcript-container">
+            <p id="transcript-text">Your full transcript will appear here...</p>
+        </div>
+
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Start (s)</th>
+                        <th>End (s)</th>
+                        <th>Text</th>
+                    </tr>
+                </thead>
+                <tbody id="segments-table-body">
+                    </tbody>
+            </table>
+        </div>
+
+        <div class="controls">
+            <button id="start-button">Start Recording</button>
+        </div>
+    </div>
+
+    <script>
+        // --- JAVASCRIPT CHANGES ---
+        let historicalTranscript = "";
+        let peerConnection;
+        let webrtc_id;
+        let eventSource;
+        // The audio visualization variables are no longer needed
+        // let audioContext, analyser, audioSource;
+        // let animationFrame;
+
+        const startButton = document.getElementById('start-button');
+        const transcriptContainer = document.getElementById('transcript-container');
+        const transcriptTextElement = document.getElementById('transcript-text');
+        // Get a reference to the new table body
+        const segmentsTableBody = document.getElementById('segments-table-body');
+
+        function showError(message) {
+            // ... (this function remains the same)
+        }
+
+        function updateButtonState() {
+            // This function is simplified as we removed the audio visualizer
+            if (peerConnection && (peerConnection.connectionState === 'connecting' || peerConnection.connectionState === 'new')) {
+                startButton.innerHTML = `<span>Connecting...</span>`;
+            } else if (peerConnection && peerConnection.connectionState === 'connected') {
+                startButton.textContent = 'Stop Recording';
+            } else {
+                startButton.textContent = 'Start Recording';
+            }
+        }
+
+        async function setupWebRTC() {
+            // ... (setupWebRTC is mostly the same, just removing the call to setupAudioVisualization)
+            const config = __RTC_CONFIGURATION__;
+            peerConnection = new RTCPeerConnection(config);
+
+            peerConnection.addEventListener('connectionstatechange', () => {
+                if (peerConnection.connectionState === 'connected') {
+                    transcriptTextElement.textContent = historicalTranscript;
+                    segmentsTableBody.innerHTML = ''; // Clear table on new session
+                }
+                updateButtonState();
+            });
+
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                stream.getTracks().forEach(track => peerConnection.addTrack(track, stream));
+
+                // Audio visualization setup is removed
+                // setupAudioVisualization(stream);
+
+                const dataChannel = peerConnection.createDataChannel('text');
+                const offer = await peerConnection.createOffer();
+                await peerConnection.setLocalDescription(offer);
+                await new Promise((resolve) => {
+                    if (peerConnection.iceGatheringState === "complete") { resolve(); }
+                    else {
+                        const checkState = () => {
+                            if (peerConnection.iceGatheringState === "complete") {
+                                peerConnection.removeEventListener("icegatheringstatechange", checkState);
+                                resolve();
+                            }
+                        };
+                        peerConnection.addEventListener("icegatheringstatechange", checkState);
+                    }
+                });
+                webrtc_id = Math.random().toString(36).substring(7);
+                const response = await fetch('/webrtc/offer', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ sdp: peerConnection.localDescription.sdp, type: peerConnection.localDescription.type, webrtc_id: webrtc_id })
+                });
+                if (!response.ok) throw new Error(`Server returned an error: ${response.status} ${response.statusText}`);
+                const serverResponse = await response.json();
+                await peerConnection.setRemoteDescription(serverResponse);
+                eventSource = new EventSource(`/transcript?webrtc_id=${webrtc_id}`);
+                eventSource.addEventListener("output", (event) => {
+                    handleServerUpdate(event.data);
+                });
+                eventSource.onerror = (err) => {
+                    showError("Transcript stream disconnected.");
+                    eventSource.close();
+                };
+            } catch (err) {
+                showError('Failed to establish connection.');
+                stop();
+            }
+        }
+
+        // Renamed function to reflect its new, broader purpose
+        function handleServerUpdate(data) {
+            try {
+                // The data is now a JSON string containing our payload
+                const payload = JSON.parse(data);
+
+                // 1. Update the main transcript display
+                const fullTranscript = payload.full_transcript || "";
+                transcriptTextElement.textContent = historicalTranscript + fullTranscript;
+                transcriptContainer.scrollTop = transcriptContainer.scrollHeight;
+
+                // 2. Update the segments table
+                const segments = payload.segments || [];
+                // Clear the existing table rows before re-rendering
+                segmentsTableBody.innerHTML = '';
+                segments.forEach(segment => {
+                    const row = document.createElement('tr');
+
+                    const startTimeCell = document.createElement('td');
+                    startTimeCell.textContent = segment.start.toFixed(2);
+
+                    const endTimeCell = document.createElement('td');
+                    endTimeCell.textContent = segment.end.toFixed(2);
+
+                    const textCell = document.createElement('td');
+                    textCell.textContent = segment.text;
+
+                    row.appendChild(startTimeCell);
+                    row.appendChild(endTimeCell);
+                    row.appendChild(textCell);
+
+                    segmentsTableBody.appendChild(row);
+                });
+
+            } catch (e) {
+                console.error("Failed to parse server data:", data, e);
+            }
+        }
+
+        function stop() {
+            // stop() function is simplified as audio visualizer is removed
+            if (peerConnection) {
+                if (peerConnection.getSenders) {
+                    peerConnection.getSenders().forEach(sender => {
+                        if (sender.track) sender.track.stop();
+                    });
+                }
+                peerConnection.close();
+                peerConnection = null;
+            }
+            if (eventSource) eventSource.close();
+
+            if (transcriptTextElement.textContent && transcriptTextElement.textContent.trim() !== historicalTranscript.trim()) {
+                historicalTranscript = transcriptTextElement.textContent + "\n\n";
+            }
+
+            updateButtonState();
+        }
+
+        startButton.addEventListener('click', () => {
+            if (!peerConnection || peerConnection.connectionState === "closed" || peerConnection.connectionState === "failed") {
+                setupWebRTC();
+            } else {
+                stop();
+            }
+        });
+    </script>
+</body>
+</html>

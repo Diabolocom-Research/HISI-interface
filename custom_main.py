@@ -20,6 +20,10 @@ from whisper_online import (
 # fastRTC imports
 from fastrtc import Stream, StreamHandler, AdditionalOutputs
 
+from utils.logger_config import setup_logging
+from utils.device import get_device, get_torch_and_np_dtypes
+from utils.turn_server import get_rtc_credentials
+
 # For this example, we assume `utils` are local helper files
 # from utils.turn_server import get_rtc_credentials # Assuming you have this helper
 
@@ -152,10 +156,9 @@ master_handler = SmartWhisperHandler(shared_store=asr_components_store)
 
 stream = Stream(
     handler=master_handler,
-    # Your handler emits continuously, so "send-receive" is appropriate
-    # if you want to send data both ways (audio in, transcript out).
+
     mode="send-receive",
-    # rtc_configuration=get_rtc_credentials(...) # Add your TURN server config here
+    modality="audio"
 )
 
 # This automatically creates the /webrtc/offer endpoint for WebRTC signaling
@@ -165,42 +168,45 @@ stream.mount(app)
 # --- API Endpoints for UI ---
 @app.get("/")
 async def index():
-    # Serve your index.html file
-    with open("static/index.html") as f:
+    # Serve your custom_index.html file
+    with open("custom_index.html") as f:
         html_content = f.read()
 
     # Inject RTC configuration if needed
-    # rtc_config = get_rtc_credentials(...)
-    # return HTMLResponse(content=html_content.replace("__RTC_CONFIGURATION__", json.dumps(rtc_config)))
-    return HTMLResponse(content=html_content)
+    rtc_config = get_rtc_credentials(...)
+    return HTMLResponse(content=html_content.replace("__RTC_CONFIGURATION__", json.dumps(rtc_config)))
+    # return HTMLResponse(content=html_content)
 
 
-@app.get("/transcript/{webrtc_id}")
+# In main.py
+@app.get("/transcript")
 async def transcript_endpoint(webrtc_id: str):
     logger.debug(f"New transcript stream request for webrtc_id: {webrtc_id}")
 
     async def output_stream_generator():
         try:
-            # stream.output_stream gives us access to the results from handler.emit()
             async for output in stream.output_stream(webrtc_id):
-                # The first argument of AdditionalOutputs is the transcript
-                full_transcript = output.args[0]
+                # NEW WAY: Send a dictionary containing both the full transcript and the segments list
 
-                logger.debug(f"Sending transcript for {webrtc_id}: {full_transcript[:50]}...")
-                # Format as a Server-Sent Event (SSE) with a custom event name "output"
-                yield f"event: output\ndata: {json.dumps(full_transcript)}\n\n"
+                # output.args[0] is self.accumulated_transcript
+                # output.args[2] is self.segments (as defined in your handler's emit)
+                payload = {
+                    "full_transcript": output.args[0],
+                    "segments": output.args[2]
+                }
+
+                # Send the entire payload as a single JSON object
+                yield f"event: output\ndata: {json.dumps(payload)}\n\n"
         except asyncio.CancelledError:
             logger.info(f"Transcript stream for {webrtc_id} disconnected.")
         except Exception as e:
             logger.error(f"Error in transcript stream for {webrtc_id}: {e}", exc_info=True)
-            raise
 
     return StreamingResponse(output_stream_generator(), media_type="text/event-stream")
 
 
 # Mount static files directory to serve JS and CSS
-app.mount("/static", StaticFiles(directory="static"), name="static")
-
+# app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # --- Application Startup Logic ---
 @app.on_event("startup")
