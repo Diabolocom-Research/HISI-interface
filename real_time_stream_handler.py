@@ -4,10 +4,6 @@ import numpy as np
 
 from typing import Optional
 
-# from whisper_online import (
-#     OnlineASRProcessor, asr_factory
-# )
-
 from fastrtc import  StreamHandler, AdditionalOutputs
 from typing import Any, Dict, List, Optional, Tuple
 

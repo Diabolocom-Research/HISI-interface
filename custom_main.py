@@ -8,8 +8,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse, HTMLResponse
 from pydantic import BaseModel, Extra
-from typing import Protocol
-from whisper_online import (
+from slimer_whisper_online import (
     OnlineASRProcessor, asr_factory
 )
 
