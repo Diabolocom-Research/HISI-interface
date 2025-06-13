@@ -20,8 +20,7 @@ from whisper_online import (
 # fastRTC imports
 from fastrtc import Stream, StreamHandler, AdditionalOutputs
 
-from utils.logger_config import setup_logging
-from utils.device import get_device, get_torch_and_np_dtypes
+
 from utils.turn_server import get_rtc_credentials
 
 # For this example, we assume `utils` are local helper files
