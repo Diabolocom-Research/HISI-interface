@@ -1,10 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Real-time Whisper Transcription</title>
+    <title>Whisper Transcription: Select Model</title>
     <style>
         :root {
             --primary-gradient: linear-gradient(135deg, #f9a45c 0%, #e66465 100%);
@@ -12,149 +11,165 @@
             --text-dark: #2d2d2d;
             --border-light: #e0e0e0;
         }
-        body {
+        html, body {
+            height: 100%; margin: 0; padding: 0;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            margin: 0; padding: 0; background-color: var(--background-cream);
-            color: var(--text-dark); min-height: 100vh;
+            background-color: var(--background-cream); color: var(--text-dark);
         }
-        .hero { background: var(--primary-gradient); color: white; padding: 2.5rem 2rem; text-align: center; }
-        .container { max-width: 1000px; margin: 1.5rem auto; padding: 0 2rem; }
-        .transcript-container {
-            border-radius: 8px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-            padding: 1.5rem; min-height: 100px; /* Reduced height as segments table is more prominent */
-            overflow-y: auto; margin-bottom: 1.5rem; border: 1px solid var(--border-light);
+        body { display: flex; align-items: center; justify-content: center; }
+        .view-hidden { display: none !important; }
+        #view-model-selection {
+            text-align: center; background-color: white; padding: 3rem 4rem;
+            border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);
         }
-        #transcript-text {
-            margin: 0; padding: 0; line-height: 1.5; font-size: 1.2rem;
-            word-wrap: break-word;
+        #view-model-selection h1 { margin-top: 0; }
+        #view-model-selection select { font-size: 1.1rem; padding: 10px; margin: 1rem 0; min-width: 250px; }
+        #view-model-selection button { font-size: 1.1rem; width: 100%; }
+        #view-loading { text-align: center; color: var(--text-dark); }
+        .spinner {
+            border: 8px solid #f3f3f3; border-top: 8px solid #e66465; border-radius: 50%;
+            width: 60px; height: 60px; animation: spin 1.2s linear infinite; margin: 0 auto 20px auto;
         }
-        .controls { text-align: center; margin: 1.5rem 0; }
-        button {
-            background: var(--primary-gradient); color: white; border: none;
-            padding: 10px 20px; font-size: 0.95rem; border-radius: 6px; cursor: pointer;
-            transition: all 0.2s ease; font-weight: 500; min-width: 180px;
-        }
-
-        /* --- NEW STYLES FOR THE SEGMENTS TABLE --- */
-        .table-container {
-            max-height: 400px; /* Set a max height for the table */
-            overflow-y: auto;
-            border: 1px solid var(--border-light);
-            border-radius: 8px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            background-color: white;
-        }
-        th, td {
-            padding: 12px 15px;
-            text-align: left;
-            border-bottom: 1px solid var(--border-light);
-        }
-        thead th {
-            background-color: #f9f9f9;
-            font-weight: 600;
-            position: sticky; /* Make header stick on scroll */
-            top: 0;
-        }
-        tbody tr:last-child td {
-            border-bottom: none;
-        }
-        td:nth-child(1), td:nth-child(2) {
-            font-family: 'Courier New', Courier, monospace;
-            width: 120px; /* Fixed width for time columns */
-        }
-
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        #view-transcription { width: 100%; height: 100%; display: flex; flex-direction: column; }
+        .hero { background: var(--primary-gradient); color: white; padding: 1.5rem 2rem; text-align: center; }
+        .hero h1 { margin: 0; font-size: 1.8rem; }
+        .container { max-width: 1000px; margin: 1rem auto; padding: 0 2rem; flex-grow: 1; display: flex; flex-direction: column; overflow-y: auto; }
+        .transcript-container { border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); padding: 1.5rem; min-height: 100px; overflow-y: auto; margin-bottom: 1.5rem; border: 1px solid var(--border-light); }
+        #transcript-text { margin: 0; padding: 0; line-height: 1.5; font-size: 1.2rem; word-wrap: break-word; }
+        .controls { text-align: center; padding: 1.5rem 0; }
+        button { background: var(--primary-gradient); color: white; border: none; padding: 12px 24px; font-size: 1rem; border-radius: 6px; cursor: pointer; transition: all 0.2s ease; font-weight: 500; min-width: 180px; }
+        button:disabled { background: #ccc; cursor: not-allowed; }
+        .table-container { max-height: 400px; overflow-y: auto; border: 1px solid var(--border-light); border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+        table { width: 100%; border-collapse: collapse; background-color: white; }
+        th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid var(--border-light); }
+        thead th { background-color: #f9f9f9; font-weight: 600; position: sticky; top: 0; }
     </style>
 </head>
-
 <body>
-    <div id="error-toast" class="toast"></div>
-    <div class="hero">
-        <h1>Real-time Transcription</h1>
-        <p>Powered by FastRTC and a Custom Whisper Backend</p>
+
+    <div id="view-model-selection">
+        <h1>Select a Transcription Model</h1>
+        <p>Choose the model you wish to use for real-time transcription.</p>
+        <select id="model-select">
+            <option value="tiny" selected>Tiny (Fastest, English-only)</option>
+            <option value="small">Small</option>
+            <option value="large-v3">Large-v3 (Most Accurate)</option>
+        </select>
+        <br/>
+        <button id="load-model-button">Load Model and Start</button>
     </div>
 
-    <div class="container">
-        <div class="transcript-container" id="transcript-container">
-            <p id="transcript-text">Your full transcript will appear here...</p>
-        </div>
+    <div id="view-loading" class="view-hidden">
+        <div class="spinner"></div>
+        <h2>Loading Model...</h2>
+        <p>This may take a moment, especially on the first run.</p>
+    </div>
 
-        <div class="table-container">
-            <table>
-                <thead>
-                    <tr>
-                        <th>Start (s)</th>
-                        <th>End (s)</th>
-                        <th>Text</th>
-                    </tr>
-                </thead>
-                <tbody id="segments-table-body">
-                    </tbody>
-            </table>
-        </div>
-
-        <div class="controls">
-            <button id="start-button">Start Recording</button>
+    <div id="view-transcription" class="view-hidden">
+        <div class="hero"><h1>Real-time Transcription</h1></div>
+        <div class="container">
+            <div class="transcript-container" id="transcript-container">
+                <p id="transcript-text">Press "Start Recording" to begin.</p>
+            </div>
+            <div class="table-container">
+                <table>
+                    <thead><tr><th>Start (s)</th><th>End (s)</th><th>Text</th></tr></thead>
+                    <tbody id="segments-table-body"></tbody>
+                </table>
+            </div>
+            <div class="controls"><button id="start-button">Start Recording</button></div>
         </div>
     </div>
 
     <script>
-        // --- JAVASCRIPT CHANGES ---
-        let historicalTranscript = "";
-        let peerConnection;
-        let webrtc_id;
-        let eventSource;
-        // The audio visualization variables are no longer needed
-        // let audioContext, analyser, audioSource;
-        // let animationFrame;
-
+        // --- STATE MANAGEMENT & DOM REFERENCES ---
+        let peerConnection; let webrtc_id; let eventSource; let historicalTranscript = "";
+        const viewModelSelection = document.getElementById('view-model-selection');
+        const viewLoading = document.getElementById('view-loading');
+        const viewTranscription = document.getElementById('view-transcription');
+        const loadModelButton = document.getElementById('load-model-button');
+        const modelSelect = document.getElementById('model-select');
         const startButton = document.getElementById('start-button');
         const transcriptContainer = document.getElementById('transcript-container');
         const transcriptTextElement = document.getElementById('transcript-text');
-        // Get a reference to the new table body
         const segmentsTableBody = document.getElementById('segments-table-body');
 
-        function showError(message) {
-            // ... (this function remains the same)
+        // --- ADDED THIS HELPER FUNCTION ---
+        // This function is the single source of truth for the button's appearance.
+        function updateButtonState() {
+            if (!peerConnection || peerConnection.connectionState === "closed" || peerConnection.connectionState === "failed") {
+                startButton.textContent = 'Start Recording';
+                startButton.disabled = false;
+            } else if (peerConnection.connectionState === "connecting" || peerConnection.connectionState === "new") {
+                startButton.textContent = 'Connecting...';
+                startButton.disabled = true;
+            } else if (peerConnection.connectionState === "connected") {
+                startButton.textContent = 'Stop Recording';
+                startButton.disabled = false;
+            }
         }
 
-        function updateButtonState() {
-            // This function is simplified as we removed the audio visualizer
-            if (peerConnection && (peerConnection.connectionState === 'connecting' || peerConnection.connectionState === 'new')) {
-                startButton.innerHTML = `<span>Connecting...</span>`;
-            } else if (peerConnection && peerConnection.connectionState === 'connected') {
-                startButton.textContent = 'Stop Recording';
-            } else {
-                startButton.textContent = 'Start Recording';
+        // --- CORE LOGIC ---
+        function switchView(viewId) {
+            viewModelSelection.classList.add('view-hidden');
+            viewLoading.classList.add('view-hidden');
+            viewTranscription.classList.add('view-hidden');
+            const viewToShow = document.getElementById(viewId);
+            if(viewToShow) { viewToShow.classList.remove('view-hidden'); }
+            document.body.style.alignItems = (viewId === 'view-transcription') ? 'normal' : 'center';
+            document.body.style.justifyContent = (viewId === 'view-transcription') ? 'normal' : 'center';
+        }
+
+        async function loadModel() {
+            switchView('view-loading');
+            const selectedModel = modelSelect.value;
+            try {
+                const response = await fetch('/load_model', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ model: selectedModel })
+                });
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.detail || `Server error: ${response.status}`);
+                }
+                document.title = "Whisper Transcription: Live";
+                switchView('view-transcription');
+            } catch (err) {
+                alert(`Error loading model: ${err.message}`);
+                switchView('view-model-selection');
             }
         }
 
         async function setupWebRTC() {
-            // ... (setupWebRTC is mostly the same, just removing the call to setupAudioVisualization)
-            const config = __RTC_CONFIGURATION__;
-            peerConnection = new RTCPeerConnection(config);
-
-            peerConnection.addEventListener('connectionstatechange', () => {
-                if (peerConnection.connectionState === 'connected') {
-                    transcriptTextElement.textContent = historicalTranscript;
-                    segmentsTableBody.innerHTML = ''; // Clear table on new session
-                }
-                updateButtonState();
-            });
+            // Immediately update the button state when we start
+            startButton.textContent = 'Connecting...';
+            startButton.disabled = true;
 
             try {
+                const config = ##RTC_CONFIGURATION##;
+                peerConnection = new RTCPeerConnection(config);
+
+                // This event listener now correctly calls our state management function
+                peerConnection.addEventListener('connectionstatechange', () => {
+                    console.log(`Connection state: ${peerConnection.connectionState}`);
+                    if (peerConnection.connectionState === 'connected') {
+                        transcriptTextElement.textContent = historicalTranscript;
+                        segmentsTableBody.innerHTML = ''; // Clear table on new session
+                    }
+                    // This call will update the button to "Stop Recording" when connected
+                    // or reset it if the connection fails.
+                    updateButtonState();
+                });
+
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
                 stream.getTracks().forEach(track => peerConnection.addTrack(track, stream));
-
-                // Audio visualization setup is removed
-                // setupAudioVisualization(stream);
 
                 const dataChannel = peerConnection.createDataChannel('text');
                 const offer = await peerConnection.createOffer();
                 await peerConnection.setLocalDescription(offer);
+
                 await new Promise((resolve) => {
                     if (peerConnection.iceGatheringState === "complete") { resolve(); }
                     else {
@@ -167,6 +182,7 @@
                         peerConnection.addEventListener("icegatheringstatechange", checkState);
                     }
                 });
+
                 webrtc_id = Math.random().toString(36).substring(7);
                 const response = await fetch('/webrtc/offer', {
                     method: 'POST',
@@ -174,81 +190,56 @@
                     body: JSON.stringify({ sdp: peerConnection.localDescription.sdp, type: peerConnection.localDescription.type, webrtc_id: webrtc_id })
                 });
                 if (!response.ok) throw new Error(`Server returned an error: ${response.status} ${response.statusText}`);
+
                 const serverResponse = await response.json();
                 await peerConnection.setRemoteDescription(serverResponse);
+
                 eventSource = new EventSource(`/transcript?webrtc_id=${webrtc_id}`);
-                eventSource.addEventListener("output", (event) => {
-                    handleServerUpdate(event.data);
-                });
+                eventSource.addEventListener("output", (event) => handleServerUpdate(event.data));
                 eventSource.onerror = (err) => {
-                    showError("Transcript stream disconnected.");
+                    console.error("Transcript stream disconnected.", err);
                     eventSource.close();
                 };
             } catch (err) {
-                showError('Failed to establish connection.');
-                stop();
+                console.error('Failed to establish connection.', err);
+                alert('Failed to establish connection. Check console for details.');
+                stop(); // Call stop to clean up and reset the UI
             }
         }
 
-        // Renamed function to reflect its new, broader purpose
         function handleServerUpdate(data) {
             try {
-                // The data is now a JSON string containing our payload
                 const payload = JSON.parse(data);
-
-                // 1. Update the main transcript display
                 const fullTranscript = payload.full_transcript || "";
                 transcriptTextElement.textContent = historicalTranscript + fullTranscript;
                 transcriptContainer.scrollTop = transcriptContainer.scrollHeight;
-
-                // 2. Update the segments table
                 const segments = payload.segments || [];
-                // Clear the existing table rows before re-rendering
                 segmentsTableBody.innerHTML = '';
                 segments.forEach(segment => {
                     const row = document.createElement('tr');
-
-                    const startTimeCell = document.createElement('td');
-                    startTimeCell.textContent = segment.start.toFixed(2);
-
-                    const endTimeCell = document.createElement('td');
-                    endTimeCell.textContent = segment.end.toFixed(2);
-
-                    const textCell = document.createElement('td');
-                    textCell.textContent = segment.text;
-
-                    row.appendChild(startTimeCell);
-                    row.appendChild(endTimeCell);
-                    row.appendChild(textCell);
-
+                    row.innerHTML = `<td>${segment.start.toFixed(2)}</td><td>${segment.end.toFixed(2)}</td><td>${segment.text}</td>`;
                     segmentsTableBody.appendChild(row);
                 });
-
             } catch (e) {
                 console.error("Failed to parse server data:", data, e);
             }
         }
 
         function stop() {
-            // stop() function is simplified as audio visualizer is removed
             if (peerConnection) {
-                if (peerConnection.getSenders) {
-                    peerConnection.getSenders().forEach(sender => {
-                        if (sender.track) sender.track.stop();
-                    });
-                }
+                peerConnection.getSenders().forEach(sender => sender.track?.stop());
                 peerConnection.close();
                 peerConnection = null;
             }
             if (eventSource) eventSource.close();
-
             if (transcriptTextElement.textContent && transcriptTextElement.textContent.trim() !== historicalTranscript.trim()) {
                 historicalTranscript = transcriptTextElement.textContent + "\n\n";
             }
-
+            // Use our new function to reset the button
             updateButtonState();
         }
 
+        loadModelButton.addEventListener('click', loadModel);
         startButton.addEventListener('click', () => {
             if (!peerConnection || peerConnection.connectionState === "closed" || peerConnection.connectionState === "failed") {
                 setupWebRTC();

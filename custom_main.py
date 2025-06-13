@@ -7,9 +7,10 @@ import asyncio
 import numpy as np
 import librosa
 from dotenv import load_dotenv
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 
 # Your core ASR logic from whisper_online.py
 from whisper_online import (
@@ -38,7 +39,7 @@ asr_components_store = {
     "asr_object": None,
     "language": "auto",
     "task": "transcribe",
-    "model": "tiny",
+    "model": None,  # Will be set by the user
     "min_chunk_sec": 1.0,
     "buffer_trimming_config": ("segment", 10.0),
     "tokenizer_object": None,
@@ -101,6 +102,7 @@ class SmartWhisperHandler(StreamHandler):
         self.segments = []
 
     def receive(self, frame):
+        logger.info(f"Handler [{self.handler_id}] received an audio frame.")
         if not self.online_proc:
             return
 
@@ -149,6 +151,68 @@ class SmartWhisperHandler(StreamHandler):
 # --- FastAPI Application ---
 app = FastAPI()
 
+
+
+class ModelSelection(BaseModel):
+    model: str
+
+
+@app.post("/load_model")
+async def load_model(selection: ModelSelection):
+    model_name = selection.model
+    if model_name not in ["tiny", "small", "large-v3"]: # Basic validation
+         raise HTTPException(status_code=400, detail="Invalid model name specified.")
+
+    config_id = f"{model_name}_{asr_components_store['language']}_{asr_components_store['task']}"
+
+    # Check if the requested model is already loaded and ready
+    if asr_components_store["current_config_id"] == config_id and asr_components_store["is_ready"]:
+        logger.info(f"Model '{model_name}' is already loaded. Skipping.")
+        return {"status": "success", "message": f"Model '{model_name}' is already loaded."}
+
+    logger.info(f"Received request to load model: {model_name}. Unloading any existing model.")
+    # Reset state before loading a new model
+    asr_components_store["is_ready"] = False
+    asr_components_store["asr_object"] = None
+    asr_components_store["tokenizer_object"] = None
+
+    try:
+        logger.info("Loading new ASR model...")
+        asr_components_store["model"] = model_name
+
+        # Create dummy args for asr_factory
+        class Args:
+            model = model_name
+            lan = asr_components_store["language"]
+            task = asr_components_store["task"]
+            min_chunk_size = asr_components_store["min_chunk_sec"]
+            buffer_trimming = asr_components_store["buffer_trimming_config"][0]
+            buffer_trimming_sec = asr_components_store["buffer_trimming_config"][1]
+            backend = "whisper_timestamped"
+            model_cache_dir = None
+            model_dir = None
+            vac = False
+            vad = False
+
+        args = Args()
+        asr_object_instance, _ = asr_factory(args)
+
+        asr_components_store["asr_object"] = asr_object_instance
+        # asr_components_store["tokenizer_object"] = create_tokenizer(model_name)
+        asr_components_store["is_ready"] = True
+        asr_components_store["current_config_id"] = config_id
+        logger.info(f"ASR model '{model_name}' loaded and ready.")
+
+        return {"status": "success", "message": f"Model '{model_name}' loaded successfully."}
+
+    except Exception as e:
+        logger.error(f"Fatal error during ASR model loading for '{model_name}': {e}", exc_info=True)
+        # Reset state on failure
+        asr_components_store["is_ready"] = False
+        asr_components_store["current_config_id"] = None
+        asr_components_store["model"] = None
+        raise HTTPException(status_code=500, detail=f"Failed to load model {model_name}. See server logs.")
+
 # --- Main change: Initialize and configure fastRTC.Stream with YOUR handler ---
 # Create one "master" handler instance. fastRTC will use its .copy() method for new clients.
 master_handler = SmartWhisperHandler(shared_store=asr_components_store)
@@ -173,7 +237,11 @@ async def index():
 
     # Inject RTC configuration if needed
     rtc_config = get_rtc_credentials(...)
-    return HTMLResponse(content=html_content.replace("__RTC_CONFIGURATION__", json.dumps(rtc_config)))
+    print(rtc_config)
+    logger.info(json.dumps(rtc_config))
+    config = {"iceServers": [{"urls": "stun:stun.l.google.com:19302"}]}
+
+    return HTMLResponse(content=html_content.replace("##RTC_CONFIGURATION##", json.dumps(config)))
     # return HTMLResponse(content=html_content)
 
 
@@ -210,38 +278,8 @@ async def transcript_endpoint(webrtc_id: str):
 # --- Application Startup Logic ---
 @app.on_event("startup")
 async def startup_event():
-    # This is where you load your ASR model when the server starts
-    logger.info("Server startup: Loading ASR model...")
-
-    # You can adapt your setup_and_start_asr logic here.
-    # For simplicity, we'll hardcode the loading.
-    try:
-        # Create dummy args for asr_factory
-        class Args:
-            model = asr_components_store["model"]
-            lan = asr_components_store["language"]
-            task = asr_components_store["task"]
-            min_chunk_size = asr_components_store["min_chunk_sec"]
-            buffer_trimming = asr_components_store["buffer_trimming_config"][0]
-            buffer_trimming_sec = asr_components_store["buffer_trimming_config"][1]
-            backend = "whisper_timestamped"  # Or your preferred backend
-            model_cache_dir = None
-            model_dir = None
-            vac = False
-            vad = False
-
-        args = Args()
-        asr_object_instance, _ = asr_factory(args)  # We don't need the online_proc from here
-
-        asr_components_store["asr_object"] = asr_object_instance
-        asr_components_store["is_ready"] = True
-        asr_components_store["current_config_id"] = f"{args.model}_{args.lan}_{args.task}"
-        logger.info("ASR model loaded and ready.")
-
-    except Exception as e:
-        logger.error(f"Fatal error during ASR model loading: {e}", exc_info=True)
-        # You might want to exit the application if the model fails to load
-        # sys.exit(1)
+    # Model loading is now moved to the /load_model endpoint
+    logger.info("FastAPI server started. Waiting for model selection from a client.")
 
 
 if __name__ == "__main__":
