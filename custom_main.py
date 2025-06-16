@@ -57,8 +57,7 @@ class WhisperOnlineLoader(ModelLoader):
         # OnlineASRProcessor wraps the base model with buffering and real-time logic
         online_processor = OnlineASRProcessor(
             asr=asr_object_instance,
-            tokenizer=None,  # whisper_timestamped backend handles this internally
-            buffer_trimming=(config.buffer_trimming, config.buffer_trimming_sec),
+            buffer_trimming=(config.buffer_trimming, int(config.buffer_trimming_sec)),
             min_chunk_sec=config.min_chunk_size,
             logfile=sys.stderr
         )
