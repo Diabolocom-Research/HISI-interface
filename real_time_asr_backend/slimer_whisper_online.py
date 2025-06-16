@@ -1,19 +1,20 @@
 #!/usr/bin/env python3
+import argparse
+import logging
 import sys
 import time
-import logging
-import librosa
-import argparse
-import numpy as np
 from functools import lru_cache
 from typing import Tuple, List, Optional, Any
 
-from real_time_asr_backend.backends_for_whisper_online import WhisperTimestampedASR, MLXWhisper, ASRBase
+import librosa
+import numpy as np
 
+from real_time_asr_backend.backends_for_whisper_online import WhisperTimestampedASR, MLXWhisper, ASRBase
 
 logger = logging.getLogger(__name__)
 
 SAMPLING_RATE = 16000
+
 
 @lru_cache(10 ** 6)
 def load_audio(fname):
@@ -28,16 +29,14 @@ def load_audio_chunk(fname, beg, end):
     return audio[beg_s:end_s]
 
 
-
-
 class HypothesisBuffer:
 
     def __init__(self, logfile=sys.stderr):
-        self.commited_in_buffer = [] # list which stores finalized word
-        self.buffer = [] # stores the previous hypothesis from the ASR
-        self.new = [] # holds the current incoming hypothesis
+        self.commited_in_buffer = []  # list which stores finalized word
+        self.buffer = []  # stores the previous hypothesis from the ASR
+        self.new = []  # holds the current incoming hypothesis
 
-        self.last_commited_time = 0 #  The end timestamp of the last word that was committed. This is crucial for knowing where the stable part of the transcript ends.
+        self.last_commited_time = 0  # The end timestamp of the last word that was committed. This is crucial for knowing where the stable part of the transcript ends.
         self.last_commited_word = None
 
         self.logfile = logfile
@@ -48,7 +47,6 @@ class HypothesisBuffer:
         '''
         # compare self.commited_in_buffer and new. It inserts only the words in new that extend the commited_in_buffer, it means they are roughly behind last_commited_time and new in content
         # the new tail is added to self.new
-
 
         new = [(a + offset, b + offset, t) for a, b, t in new]
         self.new = [(a, b, t) for a, b, t in new if a > self.last_commited_time - 0.1]
@@ -487,7 +485,6 @@ def add_shared_args(parser):
     parser.add_argument("-l", "--log-level", dest="log_level",
                         choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'], help="Set the log level",
                         default='DEBUG')
-
 
 
 def set_logging(args, logger, other="_server"):

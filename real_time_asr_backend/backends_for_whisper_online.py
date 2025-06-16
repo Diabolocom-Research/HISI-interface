@@ -47,7 +47,7 @@ class ASRBase(ABC):
         raise NotImplementedError("must be implemented in the child class")
 
     @abstractmethod
-    def transcribe(self, audio, init_prompt: str = "") -> Any:
+    def transcribe(self, audio, init_prompt: str = "") -> dict:
         """
         Performs transcription on a given audio buffer.
 
@@ -56,9 +56,11 @@ class ASRBase(ABC):
             init_prompt (str, optional): A prompt to initialize the model's context.
 
         Returns:
-            Any: The raw transcription result from the backend. The structure of this
-                 result is specific to the backend and will be passed to
-                 `ts_words` and `segments_end_ts` for parsing.
+            dict: The raw transcription result from the backend. The structure of this
+                  result must be a dictionary containing a "segments" key, where the
+                  value is a list of segment objects. This structure will be passed
+                  to `ts_words` and `segments_end_ts` for parsing.
+                  e.g. {"text": "...", "segments": [...], "language": "en"}
         """
         raise NotImplementedError("must be implemented in the child class")
 
