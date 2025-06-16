@@ -3,6 +3,7 @@ import sys
 import time
 import logging
 import librosa
+import argparse
 import numpy as np
 from functools import lru_cache
 from typing import Tuple, List, Optional, Any
@@ -384,6 +385,75 @@ class OnlineASRProcessor:
         return self._format_output(final_words)
 
 
+ASR_BACKENDS = {
+    "whisper_timestamped": WhisperTimestampedASR,
+    "mlx-whisper": MLXWhisper,
+    # "faster-whisper": FasterWhisperASR, # Can be uncommented when implemented
+}
+
+
+def asr_factory(args: argparse.Namespace, logfile=sys.stderr) -> Tuple[ASRBase, OnlineASRProcessor]:
+    """
+    Creates and configures ASR and OnlineASRProcessor instances.
+
+    This factory selects the appropriate ASR backend based on the provided
+    arguments, loads the specified model, and initializes the online processor.
+
+    Args:
+        args (argparse.Namespace): The command-line arguments.
+        logfile: A file-like object for logging.
+
+    Returns:
+        Tuple[ASRBase, OnlineASRProcessor]: A tuple containing the initialized
+        ASR backend and the online ASR processor.
+
+    Raises:
+        ValueError: If an unsupported backend is specified in the arguments.
+        NotImplementedError: If a backend is defined but not yet implemented.
+    """
+    # 1. Select the ASR backend class from the mapping.
+    backend_name = args.backend
+    asr_cls = ASR_BACKENDS.get(backend_name)
+
+    if not asr_cls:
+        # Handle unsupported or unimplemented backends cleanly.
+        if backend_name in ["openai-api", "faster-whisper"]:
+            raise NotImplementedError(f"The '{backend_name}' backend is not yet implemented.")
+        raise ValueError(
+            f"Unsupported ASR backend: '{backend_name}'. Available backends are: {list(ASR_BACKENDS.keys())}")
+
+    # 2. Load the specified ASR model.
+    t = time.time()
+    logger.info(f"Loading Whisper model '{args.model}' for language '{args.lan}' using '{backend_name}' backend...")
+
+    asr = asr_cls(
+        modelsize=args.model,
+        lan=args.lan,
+        cache_dir=args.model_cache_dir,
+        model_dir=args.model_dir
+    )
+
+    e = time.time()
+    logger.info(f"Model loaded in {e - t:.2f} seconds.")
+
+    # 3. Apply any common configurations to the ASR instance.
+    if getattr(args, 'vad', False):
+        logger.info("Voice Activity Detection (VAD) is not available.")
+        raise NotImplementedError
+
+    # 4. Create the online processor.
+    if args.vac:
+        raise NotImplementedError("Voice Activity Controller (VAC) is not yet implemented.")
+
+    online = OnlineASRProcessor(
+        asr=asr,
+        logfile=logfile,
+        buffer_trimming=(args.buffer_trimming, args.buffer_trimming_sec)
+    )
+
+    return asr, online
+
+
 def add_shared_args(parser):
     """shared args for simulation (this entry point) and server
     parser: argparse.ArgumentParser object
@@ -418,51 +488,6 @@ def add_shared_args(parser):
                         choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'], help="Set the log level",
                         default='DEBUG')
 
-
-def asr_factory(args, logfile=sys.stderr):
-    """
-    Creates and configures an ASR and ASR Online instance based on the specified backend and arguments.
-    """
-    backend = args.backend
-    if backend == "openai-api":
-        logger.debug("Using OpenAI API.")
-        # asr = OpenaiApiASR(lan=args.lan)
-    else:
-        if backend == "faster-whisper":
-            asr_cls = FasterWhisperASR
-        elif backend == "mlx-whisper":
-            asr_cls = MLXWhisper
-        else:
-            asr_cls = WhisperTimestampedASR
-
-        # Only for FasterWhisperASR and WhisperTimestampedASR
-        size = args.model
-        t = time.time()
-        logger.info(f"Loading Whisper {size} model for {args.lan}...")
-        asr = asr_cls(modelsize=size, lan=args.lan, cache_dir=args.model_cache_dir, model_dir=args.model_dir)
-        e = time.time()
-        logger.info(f"done. It took {round(e - t, 2)} seconds.")
-
-    # Apply common configurations
-    if getattr(args, 'vad', False):  # Checks if VAD argument is present and True
-        logger.info("Setting VAD filter")
-        asr.use_vad()
-
-    language = args.lan
-
-    tgt_language = language  # Whisper transcribes in this language
-    tokenizer = None
-
-    # Create the OnlineASRProcessor
-    if args.vac:
-
-        online = VACOnlineASRProcessor(args.min_chunk_size, asr, tokenizer, logfile=logfile,
-                                       buffer_trimming=(args.buffer_trimming, args.buffer_trimming_sec))
-    else:
-        online = OnlineASRProcessor(asr, logfile=logfile,
-                                    buffer_trimming=(args.buffer_trimming, args.buffer_trimming_sec))
-
-    return asr, online
 
 
 def set_logging(args, logger, other="_server"):
