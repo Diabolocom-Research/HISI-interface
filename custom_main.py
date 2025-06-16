@@ -8,13 +8,13 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse, HTMLResponse
 from pydantic import BaseModel, Extra
-from slimer_whisper_online import (
+from real_time_asr_backend.slimer_whisper_online import (
     OnlineASRProcessor, asr_factory
 )
 
-from fastrtc import Stream, StreamHandler, AdditionalOutputs
-from real_time_stream_handler import RealTimeASRHandler
-from custom_protocol import ASRProcessor, ModelLoader
+from fastrtc import Stream
+from real_time_asr_backend.real_time_stream_handler import RealTimeASRHandler
+from real_time_asr_backend.real_time_asr_protocols import ASRProcessor, ModelLoader
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(module)s:%(lineno)d - %(message)s')
@@ -26,7 +26,7 @@ asr_components_store = {
 }
 
 import logging
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 
 
