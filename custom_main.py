@@ -3,13 +3,21 @@ import logging
 import json
 import asyncio
 import hashlib
+import numpy as np
+import librosa
+import io
 
+from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 from fastapi.responses import StreamingResponse, HTMLResponse
 from pydantic import BaseModel, Extra
+from jiwer import wer, cer
+
+from typing import Any, Dict, Optional, Tuple
+
 from real_time_asr_backend.slimer_whisper_online import (
-    OnlineASRProcessor, asr_factory
+    OnlineASRProcessor, asr_factory, SAMPLING_RATE
 )
 
 from fastrtc import Stream
@@ -21,29 +29,68 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 asr_components_store = {
-    "asr_processor": None, "sample_rate": 16000, "separator": " ",
+    "asr_processor": None, "sample_rate": SAMPLING_RATE, "separator": " ",
     "is_ready": False, "current_config_id": None
 }
 
-import logging
-from typing import Any, Dict, Optional, Tuple
+# Re-using this utility function for uploaded audio files
+def load_audio_from_bytes(audio_bytes: bytes, target_sr: int = SAMPLING_RATE) -> np.ndarray:
+    """Loads audio from bytes, ensuring 16kHz mono float32."""
+    try:
+        import soundfile as sf
+        audio, sr = sf.read(io.BytesIO(audio_bytes), dtype='float32')
+        if audio.ndim > 1:
+            audio = audio.mean(axis=1)
+        if sr != target_sr:
+            audio = librosa.resample(audio, orig_sr=sr, target_sr=target_sr)
+        return audio
+    except Exception as e:
+        logger.error(f"Error loading audio from bytes: {e}", exc_info=True)
+        raise ValueError(f"Could not load audio: {e}")
 
+# This function will now be used by both /evaluate_model and /upload_and_transcribe
+async def transcribe_audio_in_chunks_and_flush(processor: OnlineASRProcessor, audio_bytes: bytes):
+    """
+    Transcribes audio in chunks using the OnlineASRProcessor and yields flushed segments.
+    Resets the processor at the beginning.
+    """
+    audio = load_audio_from_bytes(audio_bytes)
 
+    # Reset processor's internal state for this new file
+    processor.init(offset=0)
+
+    chunk_size_seconds = processor.min_chunk_sec
+    samples_per_chunk = int(chunk_size_seconds * SAMPLING_RATE)
+
+    for i in range(0, len(audio), samples_per_chunk):
+        chunk = audio[i:i + samples_per_chunk]
+
+        processor.insert_audio_chunk(chunk)
+
+        processed_output = processor.process_iter()
+        if processed_output and processed_output[2]:
+            yield processed_output
+
+        await asyncio.sleep(0.001)
+
+    # Flush any remaining buffered text at the end
+    final_flush_output = processor.finish()
+    if final_flush_output and final_flush_output[2]:
+        yield final_flush_output
 
 app = FastAPI()
+
+app.mount("/static", StaticFiles(directory="."), name="static")
+
 master_handler = RealTimeASRHandler(shared_store=asr_components_store)
 stream = Stream(handler=master_handler, mode="send-receive", modality="audio")
 stream.mount(app)
 
-
-
-
-# --- 2. Create a Concrete Implementation for whisper-online ---
+# --- 2. Create a Concrete Implementation for whisper-online (from custom_main_new.py) ---
 class WhisperOnlineLoader(ModelLoader):
     """
     Loads a model using the `whisper_online` library and its `asr_factory`.
     """
-
     def load(self, config: "ASRConfig") -> Tuple[ASRProcessor, Dict[str, Any]]:
         """
         Implements the loading logic for whisper_timestamped models.
@@ -51,41 +98,39 @@ class WhisperOnlineLoader(ModelLoader):
         logging.info("Using WhisperOnlineLoader...")
 
         # asr_factory creates the base model (e.g., whispercpp, faster-whisper)
-        asr_object_instance, _ = asr_factory(config)
+        # Note: asr_factory in custom_main.py returns a tuple (asr_object_instance, online_processor_template)
+        # We need to adapt the logic slightly for the custom_main_new.py's asr_factory return
+        asr_object_instance, online_processor_template = asr_factory(config)
         logging.info(f"Loaded base ASR model of type: {type(asr_object_instance)}")
 
-        # OnlineASRProcessor wraps the base model with buffering and real-time logic
-        online_processor = OnlineASRProcessor(
-            asr=asr_object_instance,
-            buffer_trimming=(config.buffer_trimming, int(config.buffer_trimming_sec)),
-            min_chunk_sec=config.min_chunk_size,
-            logfile=sys.stderr
-        )
+        if online_processor_template is None:
+            online_processor = OnlineASRProcessor(
+                asr=asr_object_instance,
+                tokenizer=None, # In custom_main_new.py, tokenizer is not explicitly passed here, might need to check asr_factory
+                buffer_trimming=(config.buffer_trimming, int(config.buffer_trimming_sec)),
+                min_chunk_sec=config.min_chunk_size,
+                logfile=sys.stderr
+            )
+        else:
+            online_processor = online_processor_template
+
 
         metadata = {
             "separator": getattr(asr_object_instance, "sep", " ")
         }
-
         return online_processor, metadata
 
-
-# --- 3. Build the Registry ---
-
-# This registry maps a 'backend' name from the JSON config to a loader instance.
-# To add a new model type, you just add an entry here.
+# --- 3. Build the Registry (from custom_main_new.py) ---
 MODEL_LOADERS: Dict[str, ModelLoader] = {
     "whisper_timestamped": WhisperOnlineLoader()
-    # "hugging_face_streaming": HuggingFaceLoader(), # Example for the future
 }
 
-
-# --- Pydantic model for configuration remains the same ---
 class ASRConfig(BaseModel, extra=Extra.allow):
     model: str
     lan: str = "auto"
     task: str = "transcribe"
     min_chunk_size: float = 1.0
-    backend: str = "whisper_timestamped"  # This key is used for the registry lookup
+    backend: str = "whisper_timestamped"
     buffer_trimming: str = "segment"
     buffer_trimming_sec: float = 10.0
     model_cache_dir: Optional[str] = None
@@ -93,21 +138,12 @@ class ASRConfig(BaseModel, extra=Extra.allow):
     vac: bool = False
     vad: bool = False
 
-
-# --- 4. Refactored Endpoint: Clean, Extensible, and SOLID ---
-
+# --- Refactored Endpoint: load_model (from custom_main_new.py) ---
 @app.post("/load_model")
 async def load_model(config: ASRConfig):
     """
     Loads an ASR model based on the provided configuration.
-
-    This endpoint acts as a controller that:
-    1. Validates the incoming configuration using Pydantic.
-    2. Uses the 'backend' field to find the appropriate model loader from a registry.
-    3. Delegates the loading process to the selected loader.
-    4. Updates the shared application state with the new processor.
     """
-    # Create a unique ID for this specific configuration
     config_json_str = json.dumps(config.dict(), sort_keys=True)
     config_id = hashlib.sha256(config_json_str.encode('utf-8')).hexdigest()
 
@@ -117,8 +153,6 @@ async def load_model(config: ASRConfig):
 
     logger.info(f"Request to create processor for new config: {config_json_str}")
 
-    # --- The Core of the New Design ---
-    # Look up the loader in our registry using the 'backend' from the JSON config
     loader = MODEL_LOADERS.get(config.backend)
     if not loader:
         logger.error(f"Unknown backend specified: {config.backend}")
@@ -127,15 +161,12 @@ async def load_model(config: ASRConfig):
             detail=f"Unknown backend: '{config.backend}'. Available backends are: {list(MODEL_LOADERS.keys())}"
         )
 
-    # Reset state before loading
     asr_components_store["is_ready"] = False
     asr_components_store["asr_processor"] = None
 
     try:
-        # Delegate the entire loading process to the selected loader
         online_processor, metadata = loader.load(config)
 
-        # Update the shared store with the results from the loader
         asr_components_store["asr_processor"] = online_processor
         asr_components_store["separator"] = metadata.get("separator", " ")
         asr_components_store["is_ready"] = True
@@ -150,8 +181,81 @@ async def load_model(config: ASRConfig):
         asr_components_store["asr_processor"] = None
         raise HTTPException(status_code=500, detail=f"Failed to create processor. Check server logs.")
 
+# --- Existing: Endpoint for Upload and Real-time Transcription ---
+@app.post("/upload_and_transcribe")
+async def upload_and_transcribe(audio_file: UploadFile = File(...)):
+    logger.info(f"Received file upload for real-time transcription: {audio_file.filename}")
 
-# --- Other endpoints remain the same ---
+    audio_bytes = await audio_file.read()
+
+    processor_template = asr_components_store.get("asr_processor")
+    if not processor_template:
+        raise HTTPException(status_code=400, detail="ASR processor not loaded. Please load a model first.")
+
+    # Create a new OnlineASRProcessor instance for this file upload
+    # This prevents interfering with the live ASR state if a live stream is active
+    upload_processor = OnlineASRProcessor(
+        asr=processor_template.asr,
+        # tokenizer=processor_template.tokenizer,
+        buffer_trimming=(getattr(processor_template, 'buffer_trimming_way', "segment"), getattr(processor_template, 'buffer_trimming_sec', 10.0)),
+        min_chunk_sec=processor_template.min_chunk_sec,
+        logfile=sys.stderr
+    )
+
+    async def transcription_generator():
+        current_full_transcript = []
+        try:
+            async for segment_output in transcribe_audio_in_chunks_and_flush(upload_processor, audio_bytes):
+                current_full_transcript.append(segment_output[2])
+                payload = {
+                    "full_transcript": " ".join(current_full_transcript),
+                    "segments": [{"start": segment_output[0], "end": segment_output[1], "text": segment_output[2]}],
+                    "timestamp": segment_output[1]
+                }
+                yield f"event: output\ndata: {json.dumps(payload)}\n\n"
+        except Exception as e:
+            logger.error(f"Error during uploaded file transcription stream: {e}", exc_info=True)
+            yield f"event: error\ndata: {json.dumps({'message': str(e)})}\n\n"
+        finally:
+            logger.info(f"Finished processing uploaded file: {audio_file.filename}")
+
+    return StreamingResponse(transcription_generator(), media_type="text/event-stream")
+
+
+@app.post("/evaluate_model")
+async def evaluate_model(
+    reference: str = Form(...),
+    audio: UploadFile = File(...)
+):
+    audio_bytes = await audio.read()
+
+    processor_template = asr_components_store.get("asr_processor")
+    if not processor_template:
+        raise HTTPException(status_code=400, detail="ASR processor not loaded. Please load a model first.")
+
+    # Create a new OnlineASRProcessor instance specifically for this evaluation
+    eval_processor = OnlineASRProcessor(
+        asr=processor_template.asr,
+        # tokenizer=processor_template.tokenizer,
+        buffer_trimming=(getattr(processor_template, 'buffer_trimming_way', "segment"), getattr(processor_template, 'buffer_trimming_sec', 10.0)),
+        min_chunk_sec=processor_template.min_chunk_sec,
+        logfile=sys.stderr
+    )
+
+    try:
+        full_segments_generator = transcribe_audio_in_chunks_and_flush(eval_processor, audio_bytes)
+        hypothesis_parts = [segment[2] async for segment in full_segments_generator]
+        hypothesis = " ".join(hypothesis_parts).strip()
+
+    except Exception as e:
+        logger.error(f"Error during full audio transcription for evaluation: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to transcribe audio for evaluation: {e}")
+
+    wer_score = wer(reference, hypothesis)
+    cer_score = cer(reference, hypothesis)
+
+    return {"wer": wer_score, "cer": cer_score, "hypothesis": hypothesis}
+
 
 @app.get("/")
 async def index():
@@ -177,4 +281,4 @@ async def startup_event():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8001)

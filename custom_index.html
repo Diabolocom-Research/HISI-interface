@@ -2,41 +2,21 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <script src="https://unpkg.com/wavesurfer.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://kit.fontawesome.com/02ee14764b.js" crossorigin="anonymous"></script>
+    <link href="https://unpkg.com/vis-timeline@latest/styles/vis-timeline-graph2d.min.css" rel="stylesheet" type="text/css" />
+    <script src="https://unpkg.com/vis-timeline@latest/standalone/umd/vis-timeline-graph2d.min.js"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Whisper Transcription: Configure Model</title>
-    <style>
-        :root { --primary-gradient: linear-gradient(135deg, #f9a45c 0%, #e66465 100%); --background-cream: #faf8f5; --text-dark: #2d2d2d; --border-light: #e0e0e0; }
-        html, body { height: 100%; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif; background-color: var(--background-cream); color: var(--text-dark); }
-        body { display: flex; align-items: center; justify-content: center; }
-        .view-hidden { display: none !important; }
-        #view-model-selection { text-align: left; background-color: white; padding: 2rem 3rem; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 600px; }
-        #view-model-selection h1 { text-align: center; margin-top: 0; }
-        #view-model-selection label { font-weight: 600; margin-bottom: 0.5rem; display: block; }
-        #view-model-selection textarea { width: 100%; box-sizing: border-box; padding: 10px; font-family: 'Courier New', Courier, monospace; font-size: 0.9rem; border: 1px solid var(--border-light); border-radius: 6px; margin-bottom: 1.5rem; }
-        #view-model-selection button { font-size: 1.1rem; width: 100%; }
-        #view-loading { text-align: center; color: var(--text-dark); }
-        .spinner { border: 8px solid #f3f3f3; border-top: 8px solid #e66465; border-radius: 50%; width: 60px; height: 60px; animation: spin 1.2s linear infinite; margin: 0 auto 20px auto; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        #view-transcription { width: 100%; height: 100%; display: flex; flex-direction: column; }
-        .hero { background: var(--primary-gradient); color: white; padding: 1.5rem 2rem; text-align: center; }
-        .hero h1 { margin: 0; font-size: 1.8rem; }
-        .container { max-width: 1000px; margin: 1rem auto; padding: 0 2rem; flex-grow: 1; display: flex; flex-direction: column; overflow-y: auto; }
-        .transcript-container { border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); padding: 1.5rem; min-height: 100px; overflow-y: auto; margin-bottom: 1.5rem; border: 1px solid var(--border-light); }
-        #transcript-text { margin: 0; padding: 0; line-height: 1.5; font-size: 1.2rem; word-wrap: break-word; }
-        .controls { text-align: center; padding: 1.5rem 0; }
-        button { background: var(--primary-gradient); color: white; border: none; padding: 12px 24px; font-size: 1rem; border-radius: 6px; cursor: pointer; transition: all 0.2s ease; font-weight: 500; min-width: 180px; }
-        button:disabled { background: #ccc; cursor: not-allowed; }
-        table { width: 100%; border-collapse: collapse; background-color: white; }
-        th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid var(--border-light); }
-        thead th { background-color: #f9f9f9; font-weight: 600; position: sticky; top: 0; }
-    </style>
+    <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
 
     <div id="view-model-selection">
         <h1>Configure ASR Engine</h1>
         <label for="config-json">ASR Engine Parameters (JSON):</label>
-        <textarea id="config-json" rows="12"></textarea>
+        <textarea id="config-json" class="config-json" rows="10"></textarea>
         <button id="load-model-button">Load Engine and Start</button>
     </div>
 
@@ -46,199 +26,193 @@
     </div>
 
     <div id="view-transcription" class="view-hidden">
-        <div class="hero"><h1>Real-time Transcription</h1></div>
         <div class="container">
-            <div class="transcript-container" id="transcript-container"><p id="transcript-text">Press "Start Recording" to begin.</p></div>
-            <div class="table-container">
-                <table>
-                    <thead><tr><th>Start (s)</th><th>End (s)</th><th>Text</th></tr></thead>
-                    <tbody id="segments-table-body"></tbody>
-                </table>
+
+            <div class="tabs">
+                <button class="tab-button active" data-tab="record">Record Audio</button>
+                <button class="tab-button" data-tab="upload">Upload Audio File</button>
+                <button class="tab-button" data-tab="metrics">Evaluation Metrics</button>
             </div>
-            <div class="controls"><button id="start-button">Start Recording</button></div>
+
+            <div id="record" class="tab-content active">
+                <div class="container">
+
+                    <!-- Recording Waveform Container -->
+                    <div class="waveform-container">
+                        <p class="badge">Click & Speak</p>
+                        <p id="progress">00:00</p>
+                        <div id="mic" style="border: 1px solid #ddd; border-radius: 4px; margin-top: 1rem"></div>
+                        <div class="controls">
+                            <div class="record-icon"></div>
+                            <button id="start-button">Record</button>
+                        </div>
+                    </div>
+
+                    <!-- Transcript Box -->
+                    <div class="waveform-container">
+                        <p class="badge">Transcript</p>
+                        <div class="transcript-container" id="transcript-container">
+                            <p id="transcript-text">Speak to see transcript...</p>
+                        </div>
+                    </div>
+
+                    <!-- Playback Waveform Container -->
+                    <div class="waveform-container">
+                        <p class="badge">Playback</p>
+                        <div id="recordings" style="margin: 1rem 0"></div>
+                        <div class="controls">
+                            <button id="play-mic-recording" class="play-recording" style="display: none;">
+                                <i class="fa-solid fa-play"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Timeline Container -->
+                    <div class="waveform-container">
+                        <p class="badge">Timeline</p>
+                        <div id="transcript-timeline" style="margin: 2em 0;"></div>
+                    </div>
+
+                    <!-- Table Container -->
+                    <div class="waveform-container">
+                        <p class="badge">Table</p>
+                        <div class="table-container">
+                            <table>
+                                <thead><tr><th>Start (s)</th><th>End (s)</th><th>Text</th></tr></thead>
+                                <tbody id="segments-table-body"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <div id="metrics" class="tab-content">
+                <div class="container">
+                    <form id="eval-form">
+                        <div class="form-group">
+                            <div style="
+                                display: flex;
+                                gap: 12px;
+                                align-items: center;
+                            ">
+                                <label for="audio">Select audio file:</label>
+                                <div class="controls" id="custom-audio-upload" style="margin: 0;">
+                                    <i class="fa-solid fa-arrow-up-from-bracket"></i>
+                                    <input type="file" name="audio" id="audio" class="audio-evaluation" accept="audio/*" required>
+                                </div>
+                            </div>
+                            <div id="selected-filename-container" style="display:none;">
+                                <span id="selected-filename"></span>
+                                <button type="button" id="remove-file-btn"><i class="fa-solid fa-trash"></i></button>
+                            </div>
+                        </div>
+                        <div class="form-group" style="margin-top: 2em;">
+                            <label for="reference">Input reference transcript:</label>
+                            <textarea name="reference" id="reference" class="config-json" placeholder="Reference transcript (e.g., 'Hello world')" required rows="4"></textarea>
+                        </div>
+                        <button disabled type="submit" id="evaluation-btn" class="custom-file-label">Run Evaluation</button>
+                    </form>
+
+                    <p style="font-weight: 400; margin-bottom: 0; margin-top: 2em;">Evaluation Results:</p>
+                    <div id="metrics_div"></div>
+                </div>
+            </div>
+
+            <div id="upload" class="tab-content">
+                <div class="container">
+                    <!-- Playback Waveform Container -->
+                    <div class="waveform-container">
+                        <p class="badge">Playback</p>
+                        <p id="progress" class="audio_duration">00:00</p>
+
+                        <div id="waveform" style="margin-top: 1em;"></div>
+
+                        <div class="controls-container">
+                            <div class="controls">
+                                <label for="audio_file" class="custom-file-upload">
+                                    <i class="fa-solid fa-arrow-up-from-bracket"></i>
+                                </label>
+                                <input type="file" name="audio_file" id="audio_file" accept="audio/*" required style="display: none;">
+                            </div>
+
+                            <div class="controls">
+                                <button id="play-upload-recording" class="play-recording">
+                                    <p class="custom_text">
+                                        <i class="fa-solid fa-play"></i>
+                                    </p>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button id="start-trasncript-btn" type="submit" disabled>Start Transcription</button>
+
+                    <!-- Transcript Box -->
+                    <div class="waveform-container">
+                        <p class="badge">Transcript</p>
+                        <div class="transcript-container" id="transcript-container">
+                            <p id="output">Upload a file to see transcript...</p>
+                        </div>
+                    </div>
+
+                    <!-- Timeline Container -->
+                    <div class="waveform-container">
+                        <p class="badge">Timeline</p>
+                        <div id="transcript-timeline-upload" style="margin: 2em 0;"></div>
+                    </div>
+
+                    <!-- Table Container -->
+                    <div class="waveform-container">
+                        <p class="badge">Table</p>
+                         <div class="table-container">
+                            <table>
+                                <thead><tr><th>Start (s)</th><th>End (s)</th><th>Text</th></tr></thead>
+                                <tbody id="segments-table-body-upload"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
         </div>
     </div>
 
+    <!-- Script for managing audio recording -->
+    <script src="/static/scripts/audio_recording_script.js"></script>
+    <!-- Script for managing audio file upload -->
+    <script src="/static/scripts/audio_file_script.js" type="module"></script>
+    <!-- Script for managing evaluation metrics -->
+    <script src="/static/scripts/evaluation_script.js"></script>
+    <!-- Script to manage wavesufer library -->
+    <script src="/static/scripts/wavesurfers.js" type="module"></script>
     <script>
-        // --- DOM REFERENCES ---
-        const viewModelSelection = document.getElementById('view-model-selection');
-        const viewLoading = document.getElementById('view-loading');
-        const viewTranscription = document.getElementById('view-transcription');
-        const loadModelButton = document.getElementById('load-model-button');
-        const configTextarea = document.getElementById('config-json');
-        const startButton = document.getElementById('start-button');
-        // --- FIX 1: Add the missing variable declarations ---
-        const transcriptTextElement = document.getElementById('transcript-text');
-        const segmentsTableBody = document.getElementById('segments-table-body');
+        const audioInput = document.getElementById('audio_file');
+        const startBtn = document.getElementById('start-trasncript-btn');
 
-        // --- Global State ---
-        let peerConnection; let webrtc_id; let eventSource; let historicalTranscript = "";
+        audioInput.addEventListener('change', function() {
+            // Enable button only if a file is selected
+            startBtn.disabled = !audioInput.files.length;
+        });
 
-        // --- Default Configuration for the Text Area ---
-        const defaultConfig = {
-            "model": "tiny",
-            "lan": "auto",
-            "task": "transcribe",
-            "backend": "whisper_timestamped",
-            // --- FIX 2: Increase min_chunk_size for more stable processing ---
-            "min_chunk_size": 1.0,
-            "buffer_trimming": "segment",
-            "buffer_trimming_sec": 10.0
-        };
+        window.RTC_CONFIGURATION = ##RTC_CONFIGURATION##;
 
-        // --- CORE LOGIC ---
-        function updateButtonState() {
-            if (!peerConnection || peerConnection.connectionState === "closed" || peerConnection.connectionState === "failed") {
-                startButton.textContent = 'Start Recording';
-                startButton.disabled = false;
-            } else if (peerConnection.connectionState === "connecting" || peerConnection.connectionState === "new") {
-                startButton.textContent = 'Connecting...';
-                startButton.disabled = true;
-            } else if (peerConnection.connectionState === "connected") {
-                startButton.textContent = 'Stop Recording';
-                startButton.disabled = false;
-            }
-        }
+        // --- NEW: TAB NAVIGATION LOGIC ---
+        document.addEventListener('DOMContentLoaded', () => {
+            const tabButtons = document.querySelectorAll('.tab-button');
+            const tabContents = document.querySelectorAll('.tab-content');
 
-        function switchView(viewId) {
-            viewModelSelection.classList.add('view-hidden');
-            viewLoading.classList.add('view-hidden');
-            viewTranscription.classList.add('view-hidden');
-            document.getElementById(viewId)?.classList.remove('view-hidden');
-            document.body.style.alignItems = (viewId === 'view-transcription') ? 'normal' : 'center';
-            document.body.style.justifyContent = (viewId === 'view-transcription') ? 'normal' : 'center';
-        }
+            tabButtons.forEach(button => {
+                    button.addEventListener('click', () => {
+                        const targetTab = button.dataset.tab;
 
-        async function loadModel() {
-            switchView('view-loading');
-            const jsonString = configTextarea.value;
-            let configPayload;
-            try {
-                configPayload = JSON.parse(jsonString);
-            } catch (e) {
-                alert(`Invalid JSON configuration:\n${e.message}`);
-                switchView('view-model-selection');
-                return;
-            }
-            try {
-                const response = await fetch('/load_model', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(configPayload)
+                        tabButtons.forEach(btn => btn.classList.remove('active'));
+                        tabContents.forEach(content => content.classList.remove('active'));
+
+                        button.classList.add('active');
+                        document.getElementById(targetTab).classList.add('active');
+                    });
                 });
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.detail || `Server error: ${response.status}`);
-                }
-                document.title = "Whisper Transcription: Live";
-                switchView('view-transcription');
-            } catch (err) {
-                alert(`Error loading model: ${err.message}`);
-                switchView('view-model-selection');
-            }
-        }
-
-        async function setupWebRTC() {
-            // Immediately update the button state when we start
-            startButton.textContent = 'Connecting...';
-            startButton.disabled = true;
-
-            try {
-                const config = ##RTC_CONFIGURATION##;
-                peerConnection = new RTCPeerConnection(config);
-
-                // This event listener now correctly calls our state management function
-                peerConnection.addEventListener('connectionstatechange', () => {
-                    console.log(`Connection state: ${peerConnection.connectionState}`);
-                    if (peerConnection.connectionState === 'connected') {
-                        transcriptTextElement.textContent = historicalTranscript;
-                        segmentsTableBody.innerHTML = ''; // Clear table on new session
-                    }
-                    // This call will update the button to "Stop Recording" when connected
-                    // or reset it if the connection fails.
-                    updateButtonState();
-                });
-
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                stream.getTracks().forEach(track => peerConnection.addTrack(track, stream));
-
-                const dataChannel = peerConnection.createDataChannel('text');
-                const offer = await peerConnection.createOffer();
-                await peerConnection.setLocalDescription(offer);
-
-                await new Promise((resolve) => {
-                    if (peerConnection.iceGatheringState === "complete") { resolve(); }
-                    else {
-                        const checkState = () => {
-                            if (peerConnection.iceGatheringState === "complete") {
-                                peerConnection.removeEventListener("icegatheringstatechange", checkState);
-                                resolve();
-                            }
-                        };
-                        peerConnection.addEventListener("icegatheringstatechange", checkState);
-                    }
-                });
-
-                webrtc_id = Math.random().toString(36).substring(7);
-                const response = await fetch('/webrtc/offer', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ sdp: peerConnection.localDescription.sdp, type: peerConnection.localDescription.type, webrtc_id: webrtc_id })
-                });
-                if (!response.ok) throw new Error(`Server returned an error: ${response.status} ${response.statusText}`);
-
-                const serverResponse = await response.json();
-                await peerConnection.setRemoteDescription(serverResponse);
-
-                eventSource = new EventSource(`/transcript?webrtc_id=${webrtc_id}`);
-                eventSource.addEventListener("output", (event) => handleServerUpdate(event.data));
-                eventSource.onerror = (err) => {
-                    console.error("Transcript stream disconnected.", err);
-                    eventSource.close();
-                };
-            } catch (err) {
-                console.error('Failed to establish connection.', err);
-                alert('Failed to establish connection. Check console for details.');
-                stop(); // Call stop to clean up and reset the UI
-            }
-        }
-
-        function handleServerUpdate(data) {
-            try {
-                const payload = JSON.parse(data);
-                transcriptTextElement.textContent = historicalTranscript + (payload.full_transcript || "");
-                document.getElementById('transcript-container').scrollTop = document.getElementById('transcript-container').scrollHeight;
-                const segments = payload.segments || [];
-                segmentsTableBody.innerHTML = '';
-                segments.forEach(segment => {
-                    const row = document.createElement('tr');
-                    row.innerHTML = `<td>${segment.start.toFixed(2)}</td><td>${segment.end.toFixed(2)}</td><td>${segment.text}</td>`;
-                    segmentsTableBody.appendChild(row);
-                });
-            } catch (e) {
-                console.error("Failed to parse server data:", data, e);
-            }
-        }
-
-        function stop() {
-            if (peerConnection) {
-                peerConnection.getSenders().forEach(sender => sender.track?.stop());
-                peerConnection.close();
-                peerConnection = null;
-            }
-            if (eventSource) eventSource.close();
-            if (transcriptTextElement && transcriptTextElement.textContent && transcriptTextElement.textContent.trim() !== historicalTranscript.trim()) {
-                historicalTranscript = transcriptTextElement.textContent + "\n\n";
-            }
-            updateButtonState();
-        }
-
-        // --- INITIALIZATION ---
-        configTextarea.value = JSON.stringify(defaultConfig, null, 2);
-        loadModelButton.addEventListener('click', loadModel);
-        startButton.addEventListener('click', () => {
-            if (!peerConnection || peerConnection.connectionState === "closed") { setupWebRTC(); }
-            else { stop(); }
         });
     </script>
 </body>

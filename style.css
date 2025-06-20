@@ -1,5 +1,413 @@
-textarea { font-size: 18px;}
-#model_output_text_box span {
-    font-size: 18px;
-    font-weight: bold;
+:root {
+    --primary-gradient: linear-gradient(135deg, #f9a45c 0%, #e66465 100%);
+    --background-cream: #faf8f5;
+    --text-dark: #2d2d2d;
+    --border-light: #E5E7EB;
+}
+
+html, body {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    background-color: var(--background-cream);
+    color: var(--text-dark);
+}
+
+body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.view-hidden {
+    display: none !important;
+}
+
+/* Container Styles */
+.container {
+    width: 90%;
+    margin: 2rem auto;
+    padding: 0 2rem 2rem 2rem;
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Model Selection */
+#view-model-selection {
+    text-align: left;
+    background-color: white;
+    padding: 2rem 3rem;
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    width: 600px;
+}
+#view-model-selection h1 {
+    text-align: center;
+    margin: 0 0 1em 0;
+}
+#view-model-selection label {
+    font-weight: 600;
+    margin-bottom: 0.8rem;
+    display: block;
+    font-size: 13px;
+    margin-left: 0.3em;
+}
+.config-json {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 10px;
+    font-family: monospace;
+    font-size: 0.9rem;
+    border: 1px solid var(--border-light);
+    border-radius: 6px;
+    margin-bottom: 1.5rem;
+    background: #F9FAFB;
+    color: var(--text-dark);
+}
+#view-model-selection button {
+    font-size: 1.1rem;
+    width: 100%;
+    font-weight: 600;
+}
+
+/* Loading Spinner */
+#view-loading {
+    text-align: center;
+    color: var(--text-dark);
+}
+.spinner {
+    border: 8px solid #f3f3f3;
+    border-top: 8px solid #e66465;
+    border-radius: 50%;
+    width: 60px;
+    height: 60px;
+    animation: spin 1.2s linear infinite;
+    margin: 0 auto 20px auto;
+}
+@keyframes spin {
+    0% { transform: rotate(0deg);}
+    100% { transform: rotate(360deg);}
+}
+
+/* Main Transcription View */
+#view-transcription {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Waveform Container */
+.waveform-container {
+    background-color: white;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    position: relative;
+    border: 1px solid var(--border-light);
+    padding: 0.5rem 1rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    min-height: 100px;
+    border-radius: 3px;
+    margin-bottom: 1em;
+}
+
+/* Progress */
+#progress {
+    margin-top: 0;
+    margin-bottom: 0;
+    width: fit-content;
+    padding: 4px 8px;
+    border-radius: 4px;
+    align-self: end;
+    border: 1px solid var(--border-light);
+    border-radius: 3px;
+}
+
+/* Transcript */
+.transcript-container {
+    margin-top: 2em;
+    border-radius: 4px;
+    padding: 6px 12px;
+    min-height: 100px;
+    overflow-y: auto;
+    border: 1px solid var(--border-light);
+    background: var(--background-cream);
+}
+
+#transcript-text, #output {
+    margin: 0;
+    padding: 0;
+    line-height: 1.5;
+    font-size: 1rem;
+    word-wrap: break-word;
+}
+
+/* Controls */
+.controls, .controls-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: fit-content;
+    gap: 1em;
+    align-self: center;
+    height: fit-content;
+}
+
+.controls {
+    margin: 1em auto 0.5em auto;
+    height: 20px;
+    text-align: center;
+    border: 1px solid var(--border-light);
+    border-radius: 4px;
+    padding: 4px 9px;
+    gap: 5px;
+}
+
+.controls * {
+    cursor: pointer;
+}
+
+.record-icon {
+    width: 10px;
+    height: 10px;
+    background-color: #d71717;
+    border-radius: 50%;
+}
+
+.recording {
+    animation: pulse 1s infinite;
+}
+@keyframes pulse {
+    0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255,0,0,0.7);}
+    70% { transform: scale(1.1); box-shadow: 0 0 10px 10px rgba(255,0,0,0);}
+    100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255,0,0,0);}
+}
+
+/* Buttons */
+#load-model-button, #start-trasncript-btn, .custom-file-label {
+    background: var(--primary-gradient);
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    font-size: 1rem;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-weight: 500;
+    min-width: 180px;
+}
+
+#start-trasncript-btn {
+    margin-bottom: 1em;
+}
+
+#start-trasncript-btn:disabled, #evaluation-btn:disabled, .custom-file-label:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+button:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+}
+
+#start-button, .play-recording {
+    border-radius: 4px;
+    font-weight: 400;
+    border: 0;
+    background: transparent;
+    margin: 0;
+}
+
+.custom_text {
+    border-radius: 4px;
+    font-weight: 500;
+    border: 0;
+    background: transparent;
+    margin: 0;
+}
+
+/* Badge */
+.badge {
+    border-bottom-right-radius: 4px;
+    position: absolute;
+    top: 0;
+    left: 0;
+    border-bottom: 1px solid var(--border-light);
+    border-right: 1px solid var(--border-light);
+    padding: 5px 8px;
+    font-size: 14px;
+    background: #f2f2f2;
+    margin: 0;
+}
+
+/* Table */
+.table-container {
+    margin-top: 2.5em;
+    min-height: 330px;
+    height: 330px;
+    overflow-y: auto;
+    border: 1px solid var(--border-light);
+    border-radius: 4px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    background-color: white;
+}
+
+th, td {
+    padding: 12px 15px;
+    text-align: left;
+    border-bottom: 1px solid var(--border-light);
+}
+
+thead th {
+    background-color: #f9f9f9;
+    font-weight: 600;
+    position: sticky;
+    top: 0;
+}
+
+/* Waveform */
+#waveform {
+    width: 100%;
+    height: 128px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+
+/* Timeline (vis.js) */
+.vis-item {
+    background-color: rgb(245, 192, 94) !important;
+    border: 1px solid orange !important;
+    border-radius: 3px;
+    font-weight: 600;
+    color: white !important;
+}
+
+.vis-custom-time.cursor {
+    background-color: orange !important;
+}
+
+.vis-timeline {
+    border-radius: 3px !important;
+    border: 1px solid var(--border-light) !important;
+}
+
+/* Tabs */
+.tabs {
+    display: flex;
+    margin-bottom: 1rem;
+    border-bottom: 1px solid #ddd;
+}
+
+.tab-button {
+    padding: 10px 15px;
+    cursor: pointer;
+    border: none;
+    background-color: #f1f1f1;
+    border-bottom: 2px solid transparent;
+    transition: all 0.3s ease;
+}
+
+.tab-button.active {
+    background-color: white;
+    border-bottom: 2px solid #da7634;
+    color: #da7634;
+}
+
+.tab-content {
+    display: none;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+/* Metrics/Evaluation */
+#metrics_div {
+    margin-top: 15px;
+    border: 1px solid var(--border-light);
+    border-radius: 5px;
+    padding: 12px 12px;
+    gap: 15px;
+    display: flex;
+    flex-direction: column;
+}
+
+#metrics_div * {
+    margin: 0;
+}
+
+#eval-form {
+    display: flex;
+    flex-direction: column;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.form-group label {
+    padding-left: 3px;
+}
+
+/* File Upload */
+input[type="file"].audio-evaluation,
+#audio_file {
+    display: none;
+}
+
+#file-name, #selected-filename {
+    margin-left: 10px;
+    font-style: italic;
+    color: #555;
+}
+
+#selected-filename-container {
+    display: flex;
+    align-items: center;
+    border-radius: 4px;
+    padding: 6px 12px;
+    border: 1px solid var(--border-light);
+}
+
+#selected-filename {
+    margin: 0;
+    flex: 1;
+    color: #333;
+    font-style: italic;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+#remove-file-btn {
+    background: #dc3545;
+    color: #fff;
+    border: none;
+    border-radius: 3px;
+    padding: 4px 7px;
+    margin-left: 10px;
+    cursor: pointer;
+    font-size: 0.95em;
+    transition: background 0.2s;
+}
+
+#remove-file-btn:hover {
+    background: #b52a37;
+}
+
+/* Misc */
+.scroll {
+    margin-top: 1em !important;
+    background-color: var(--background-cream);
 }
