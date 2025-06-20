@@ -27,7 +27,7 @@ SAMPLE_RATE = 16000 # Hz
 MAX_AUDIO_MINUTES = 10 # wont try to transcribe if longer than this
 
 # Load JS
-js_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'custom_time_control.js')
+js_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'scripts/custom_time_control.js')
 with open(js_path, 'r') as f:
     js_content = f.read()
 script = f"""<script>{js_content}</script>"""

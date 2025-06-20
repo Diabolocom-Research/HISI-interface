@@ -259,7 +259,7 @@ async def evaluate_model(
 
 @app.get("/")
 async def index():
-    with open("custom_index.html") as f: html_content = f.read()
+    with open("index.html") as f: html_content = f.read()
     rtc_config = {"iceServers": [{"urls": "stun:stun.l.google.com:19302"}]}
     return HTMLResponse(content=html_content.replace("##RTC_CONFIGURATION##", json.dumps(rtc_config)))
 
