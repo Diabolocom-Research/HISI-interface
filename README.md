@@ -1,16 +1,8 @@
-You would need to install a bunch of things. And currently only supports Mac
+# Realtime Automatic Speech Recognition (ASR)
 
-python fastrtc_server.py \            
-  --model small \
-  --lan en \
-  --min-chunk-size 1.0 \
-  --host 0.0.0.0 \
-  --port 9880 \
- --backend mlx-whisper
+This section of the readme concerns with the real time ASR and how to bring your own custom engine to the interface.
 
-
-
-## Integrating a Custom Automatic Speech Recognition (ASR) RealTime Engine
+## Integrating a Custom ASR RealTime Engine
 
 This guide details the process for integrating a custom ASR engine into the real-time transcription server. The application is built with a modular, protocol-based architecture, allowing developers to easily "plug in" different ASR systems while leveraging the existing server infrastructure for WebRTC and client communication.
 
@@ -24,7 +16,8 @@ This is the most common and straightforward approach. It involves using the exis
 
     Core Task: You will create an adapter class that implements the ASRBase interface, which acts as a bridge between the OnlineASRProcessor and your model's specific API.
 
-    For a detailed guide, see: CustomASRusingOnlineWhisper.md
+
+For a detailed guide, see: **CustomASRusingOnlineWhisper.md**
 
 2. Path B: Providing a Fully Custom Real-Time Engine
 
@@ -34,7 +27,7 @@ This is the advanced approach for developers who want to replace the entire real
 
     Core Task: You will create a class that implements the ASRProcessor interface. This class will completely replace the default OnlineASRProcessor. The server will feed raw audio chunks to your class and expect finalized transcript segments in return.
 
-    For a detailed guide, see: CustomRealtimeASRWithoutOnlineWhisper.md
+For a detailed guide, see: **CustomRealtimeASRWithoutOnlineWhisper.md**
 
 Final Step: Registering Your Implementation
 
