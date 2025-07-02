@@ -1,16 +1,20 @@
 #!/usr/bin/env python3
-import sys
-import numpy as np
-import librosa
-from functools import lru_cache
-import time
+import argparse
 import logging
+import sys
+import time
+from functools import lru_cache
+from typing import Tuple, List, Optional, Any
 
-from real_time_asr_backend.backends_for_whisper_online import WhisperTimestampedASR, MLXWhisper
+import librosa
+import numpy as np
+
+from real_time_asr_backend.backends_for_whisper_online import WhisperTimestampedASR, MLXWhisper, ASRBase
 
 logger = logging.getLogger(__name__)
 
 SAMPLING_RATE = 16000
+
 
 @lru_cache(10 ** 6)
 def load_audio(fname):
@@ -25,22 +29,22 @@ def load_audio_chunk(fname, beg, end):
     return audio[beg_s:end_s]
 
 
-# Whisper backend
-
-
 class HypothesisBuffer:
 
     def __init__(self, logfile=sys.stderr):
-        self.commited_in_buffer = []
-        self.buffer = []
-        self.new = []
+        self.commited_in_buffer = []  # list which stores finalized word
+        self.buffer = []  # stores the previous hypothesis from the ASR
+        self.new = []  # holds the current incoming hypothesis
 
-        self.last_commited_time = 0
+        self.last_commited_time = 0  # The end timestamp of the last word that was committed. This is crucial for knowing where the stable part of the transcript ends.
         self.last_commited_word = None
 
         self.logfile = logfile
 
     def insert(self, new, offset):
+        '''
+        The offset is the start time of the audio chunk that was processed. The ASR will give timestamps relative to this chunk (e.g., from 0.0 seconds). This line converts those relative timestamps to absolute timestamps in the audio stream.
+        '''
         # compare self.commited_in_buffer and new. It inserts only the words in new that extend the commited_in_buffer, it means they are roughly behind last_commited_time and new in content
         # the new tail is added to self.new
 
@@ -48,6 +52,12 @@ class HypothesisBuffer:
         self.new = [(a, b, t) for a, b, t in new if a > self.last_commited_time - 0.1]
 
         if len(self.new) >= 1:
+            '''
+            overlapping predictions.
+                - It checks if the start of the new hypothesis is very close in time to the end of the last committed transcript (abs(a - self.last_commited_time) < 1).
+                - If so, it looks for an overlap in the content of the words. It compares n-grams (sequences of 1 to 5 words) at the end of the commited_in_buffer with the beginning of the self.new hypothesis.
+                - If it finds a matching n-gram (e.g., the last two words of the committed transcript are the same as the first two words of the new hypothesis), it removes those overlapping words from self.new. This is critical to avoid stuttering output like "this is a... this is a test".
+            '''
             a, b, t = self.new[0]
             if abs(a - self.last_commited_time) < 1:
                 if self.commited_in_buffer:
@@ -97,357 +107,349 @@ class HypothesisBuffer:
 
 
 class OnlineASRProcessor:
+    """
+    Manages the real-time, streaming processing of audio for an ASR model.
+
+    This class acts as the main engine for a streaming ASR system. It is
+    responsible for:
+    1.  Buffering incoming audio chunks.
+    2.  Calling an ASR backend to transcribe the audio.
+    3.  Using a HypothesisBuffer to stabilize the ASR's output.
+    4.  Intelligently managing the audio buffer's size to ensure low latency
+        and memory usage in long-running sessions.
+    5.  Handling errors and ASR failures gracefully.
+    """
     SAMPLING_RATE = 16000
 
-    def __init__(self, asr, tokenizer=None, buffer_trimming=("segment", 15), logfile=sys.stderr,
-                 min_chunk_sec: float = 1.0):
+    def __init__(self,
+                 asr: ASRBase,
+                 buffer_trimming: Tuple[str, int] = ("segment", 15),
+                 min_chunk_sec: float = 1.0,
+                 logfile=sys.stderr):
+        """
+        Initializes the OnlineASRProcessor.
+
+        Args:
+            asr (ASRBase): An instance of an ASR backend that conforms to the
+                           ASRBase interface. This is the model that will perform
+                           the actual speech-to-text conversion.
+            buffer_trimming (Tuple[str, int], optional): A tuple defining the
+                strategy for trimming the audio buffer. Defaults to ("segment", 15),
+                meaning the buffer is trimmed based on ASR segments when it
+                exceeds 15 seconds.
+            min_chunk_sec (float, optional): The minimum amount of audio in seconds
+                that must be in the buffer before processing is attempted.
+                Defaults to 1.0.
+            logfile (file, optional): A file-like object for logging output.
+                Defaults to sys.stderr.
+        """
         self.asr = asr
-        self.tokenizer = tokenizer
         self.logfile = logfile
         self.min_chunk_sec = min_chunk_sec
-        self.init()
         self.buffer_trimming_way, self.buffer_trimming_sec = buffer_trimming
-        # For fallback trimming: track consecutive ASR failures
-        self.consecutive_asr_failures = 0
-        self.MAX_CONSECUTIVE_ASR_FAILURES_FOR_FALLBACK_TRIM = 3  # Configurable: after how many failures to force trim
-        self.FALLBACK_TRIM_OVER_THRESHOLD_SEC = 5  # Configurable: how many seconds over buffer_trimming_sec to trigger fallback
 
-    def init(self, offset=None):
+        # Configuration for the fallback trimming mechanism
+        self.MAX_CONSECUTIVE_ASR_FAILURES = 3
+        self.FALLBACK_TRIM_THRESHOLD_SEC = 5
+
+        self.init()
+
+    def init(self, offset: float = 0.0):
+        """
+        Resets the processor to a clean initial state.
+
+        This is useful for starting a new audio stream without creating a new
+        processor instance.
+
+        Args:
+            offset (float, optional): The initial time offset for the audio stream.
+                Defaults to 0.0.
+        """
         self.audio_buffer = np.array([], dtype=np.float32)
         self.transcript_buffer = HypothesisBuffer(logfile=self.logfile)
-        self.buffer_time_offset = 0
-        if offset is not None:
-            self.buffer_time_offset = offset
+        self.buffer_time_offset = offset
         self.transcript_buffer.last_commited_time = self.buffer_time_offset
         self.commited = []
-        self.consecutive_asr_failures = 0  # Reset on init
+        self.consecutive_asr_failures = 0
 
-    def insert_audio_chunk(self, audio):
+    def insert_audio_chunk(self, audio: np.ndarray):
+        """Appends a new chunk of audio to the internal buffer."""
         self.audio_buffer = np.append(self.audio_buffer, audio)
 
-    def prompt(self):
-        k = max(0, len(self.commited) - 1)
-        while k > 0 and self.commited[k - 1][1] > self.buffer_time_offset:
-            k -= 1
-        p = self.commited[:k]
-        p = [t for _, _, t in p]
-        prompt_list = []
-        l = 0
-        while p and l < 200:
-            x = p.pop(-1)
-            l += len(x) + 1
-            prompt_list.append(x)
-        non_prompt = self.commited[k:]
-        return self.asr.sep.join(prompt_list[::-1]), self.asr.sep.join(t for _, _, t in non_prompt)
+    def process_iter(self) -> Tuple[Optional[float], Optional[float], str]:
+        """
+        Performs one complete iteration of the processing loop.
 
-    def process_iter(self):
-        buffered_sec = len(self.audio_buffer) / self.SAMPLING_RATE
-        if buffered_sec < self.min_chunk_sec:
+        This method orchestrates the transcription, stabilization, and buffer
+        management steps.
+
+        Returns:
+            Tuple[Optional[float], Optional[float], str]: A tuple containing the
+            start time, end time, and text of the newly committed transcript
+            segment. Returns (None, None, "") if no new segment is committed.
+        """
+        # Stage 1: Check if there is enough audio to process.
+        if len(self.audio_buffer) / self.SAMPLING_RATE < self.min_chunk_sec:
             return (None, None, "")
 
-        prompt_str, context_str = self.prompt()
+        # Stage 2: Transcribe the audio buffer.
+        asr_result, asr_success = self._transcribe_audio()
+
+        # Stage 3: Stabilize the transcript and get the newly committed part.
+        committed_words = self._stabilize_transcript(asr_result)
+
+        # Stage 4: Manage the audio buffer's size.
+        self._manage_audio_buffer(asr_result, asr_success)
+
+        # Stage 5: Format and return the committed segment.
+        return self._format_output(committed_words)
+
+    def _transcribe_audio(self) -> Tuple[Any, bool]:
+        """
+        Calls the ASR backend to transcribe the audio buffer and handles errors.
+
+        Returns:
+            Tuple[Any, bool]: A tuple containing the raw ASR result and a
+                              boolean indicating if the transcription was successful.
+        """
+        prompt_str = self._get_prompt()
         logger.debug(f"PROMPT: {prompt_str}")
-        logger.debug(f"CONTEXT: {context_str}")
-        logger.debug(
-            f"transcribing {buffered_sec:.2f} seconds from {self.buffer_time_offset:.2f}")
 
-        # Define a structure for an empty/failed ASR result
-        # This structure should be compatible with self.asr.ts_words and self.asr.segments_end_ts
-        # For WhisperTimestampedASR, an empty result usually has a "segments" key with an empty list.
-        empty_asr_result = {"text": "", "segments": [], "language": self.asr.original_language or "en"}
+        buffered_sec = len(self.audio_buffer) / self.SAMPLING_RATE
+        logger.debug(f"Transcribing {buffered_sec:.2f} seconds from {self.buffer_time_offset:.2f}")
 
-        res = empty_asr_result  # Default to empty result
-        tsw = []
-        asr_success = False
+        # This structure must be compatible with the ASR backend's expected result format,
+        # even in failure cases.
+        empty_result = {"text": "", "segments": [], "language": self.asr.original_language or "en"}
+
         try:
-            # Attempt transcription
-            temp_res = self.asr.transcribe(self.audio_buffer, init_prompt=prompt_str)
+            # Attempt the transcription.
+            result = self.asr.transcribe(self.audio_buffer, init_prompt=prompt_str)
 
-            # Basic validation of the result (depends on ASR backend)
-            if isinstance(temp_res, dict) and "segments" in temp_res:
-                res = temp_res  # Use the actual result
-                tsw = self.asr.ts_words(
-                    res)  # This might also fail if res structure is unexpected despite 'segments' key
-                asr_success = True
-                self.consecutive_asr_failures = 0  # Reset counter on success
+            # Validate the result structure.
+            if isinstance(result, dict) and "segments" in result:
+                self.consecutive_asr_failures = 0
+                return result, True
             else:
-                # Handle cases where transcribe doesn't error but returns unexpected structure
-                logger.warning(
-                    f"asr.transcribe returned an unexpected result structure: {type(temp_res)}. Treating as failure.")
-                # res remains empty_asr_result, tsw remains []
+                logger.warning(f"ASR returned an unexpected structure: {type(result)}. Treating as failure.")
                 self.consecutive_asr_failures += 1
-        except AssertionError as e:
-            logger.error(f"AssertionError during asr.transcribe: {e}. Treating as failure.")
-            # res remains empty_asr_result, tsw remains []
+                return empty_result, False
+        except Exception as e:
+            logger.error(f"Error during ASR transcription: {e}. Treating as failure.")
             self.consecutive_asr_failures += 1
-        except Exception as e:  # Catch other potential errors from transcribe
-            logger.error(f"Generic error during asr.transcribe: {e}. Treating as failure.")
-            # res remains empty_asr_result, tsw remains []
-            self.consecutive_asr_failures += 1
+            return empty_result, False
 
-        self.transcript_buffer.insert(tsw, self.buffer_time_offset)  # tsw is [] if ASR failed
-        o = self.transcript_buffer.flush()  # o will be [] if ASR failed (no new words inserted)
-        if o:  # Only extend commited if new words were flushed from transcript_buffer
-            self.commited.extend(o)
+    def _stabilize_transcript(self, asr_result: Any) -> List[Tuple[float, float, str]]:
+        """
+        Uses the HypothesisBuffer to stabilize the transcript.
 
-        # Log current transcript state (optional, for debugging)
-        # completed_log = self.to_flush(o)
-        # logger.debug(f">>>>COMPLETE NOW: {completed_log}")
-        # the_rest_log = self.to_flush(self.transcript_buffer.complete())
-        # logger.debug(f"INCOMPLETE: {the_rest_log}")
+        Args:
+            asr_result (Any): The raw result from the ASR backend.
 
-        # --- Buffer Trimming Logic ---
-        # Sentence-based trimming (if ASR was successful and new text was committed)
-        if asr_success and o and self.buffer_trimming_way == "sentence":
-            if len(self.audio_buffer) / self.SAMPLING_RATE > self.buffer_trimming_sec:
-                self.chunk_completed_sentence()  # Relies on self.commited
+        Returns:
+            List[Tuple[float, float, str]]: A list of newly committed words.
+        """
+        timestamped_words = self.asr.ts_words(asr_result)
+        self.transcript_buffer.insert(timestamped_words, self.buffer_time_offset)
 
-        # Segment-based trimming (or default time-based if buffer too long)
-        # This should be attempted even if ASR failed, using 'res' (which would be empty_asr_result)
-        # or relying on self.commited for trimming points.
+        newly_committed_words = self.transcript_buffer.flush()
+        if newly_committed_words:
+            self.commited.extend(newly_committed_words)
+
+        return newly_committed_words
+
+    def _manage_audio_buffer(self, asr_result: Any, asr_success: bool):
+        """
+        Trims the audio buffer using intelligent or fallback strategies.
+
+        Args:
+            asr_result (Any): The raw result from the ASR backend.
+            asr_success (bool): Flag indicating if the transcription was successful.
+        """
         current_buffer_len_sec = len(self.audio_buffer) / self.SAMPLING_RATE
-        # Determine the primary threshold for attempting a trim
-        trim_attempt_threshold_sec = self.buffer_trimming_sec if self.buffer_trimming_way == "segment" else 30
 
-        if current_buffer_len_sec > trim_attempt_threshold_sec:
-            trimmed_by_segment_logic = self.chunk_completed_segment(res)  # Pass 'res' (actual or empty)
-            if trimmed_by_segment_logic:
-                logger.debug(
-                    f"Buffer trimmed by chunk_completed_segment. New length: {len(self.audio_buffer) / self.SAMPLING_RATE:.2f}s")
-            else:
-                logger.debug(f"chunk_completed_segment did not trim. Buffer length: {current_buffer_len_sec:.2f}s")
+        # 1. Attempt intelligent trimming based on ASR segments.
+        if current_buffer_len_sec > self.buffer_trimming_sec:
+            self._trim_buffer_by_segment(asr_result)
 
-        # Fallback Trimming: If ASR has failed multiple times AND buffer is still too long
-        current_buffer_len_sec_after_trim = len(self.audio_buffer) / self.SAMPLING_RATE
-        fallback_trigger_threshold_sec = self.buffer_trimming_sec + self.FALLBACK_TRIM_OVER_THRESHOLD_SEC
+        # 2. Apply fallback trimming if ASR is failing and buffer is too long.
+        self._apply_fallback_trim(asr_success)
 
-        if (not asr_success and
-                self.consecutive_asr_failures >= self.MAX_CONSECUTIVE_ASR_FAILURES_FOR_FALLBACK_TRIM and
-                current_buffer_len_sec_after_trim > fallback_trigger_threshold_sec):
-
-            # ASR is failing, and normal trimming (if any occurred) didn't bring buffer below a higher threshold.
-            # Forcefully discard the oldest part of the audio buffer to ensure progress.
-            samples_to_discard = int(self.min_chunk_sec * self.SAMPLING_RATE)  # Discard one min_chunk_sec
-
-            if samples_to_discard > 0 and samples_to_discard <= len(self.audio_buffer):
-                discard_sec = samples_to_discard / self.SAMPLING_RATE
-                logger.warning(
-                    f"ASR failed {self.consecutive_asr_failures} times & buffer ({current_buffer_len_sec_after_trim:.2f}s) > fallback threshold ({fallback_trigger_threshold_sec:.2f}s). "
-                    f"Forcefully discarding oldest {discard_sec:.2f}s of audio."
-                )
-                self.audio_buffer = self.audio_buffer[samples_to_discard:]
-                self.buffer_time_offset += discard_sec
-                # Important: Adjust commited transcripts based on new buffer_time_offset
-                self.transcript_buffer.pop_commited(self.buffer_time_offset)
-                # Also, re-filter self.commited list itself if it contains items older than new offset
-                self.commited = [item for item in self.commited if item[1] > self.buffer_time_offset]
-            elif samples_to_discard == 0:
-                logger.warning("Fallback trim: min_chunk_sec is zero, no audio discarded by fallback.")
-            else:  # samples_to_discard > len(self.audio_buffer)
-                logger.warning(
-                    f"Fallback trim: Calculated discard ({samples_to_discard}) > buffer len ({len(self.audio_buffer)}). Not discarding.")
-
-        logger.debug(f"End of process_iter. len of buffer now: {len(self.audio_buffer) / self.SAMPLING_RATE:.2f}")
-        return self.to_flush(o)
-
-    def chunk_completed_sentence(self):
-        if not self.commited: return False  # Ensure self.commited is not empty
-        logger.debug(f"Attempting sentence chunk. Commited: {self.commited}")
-        sents = self.words_to_sentences(self.commited)
-        # for s_idx, s_val in enumerate(sents): logger.debug(f"\t\tSENT {s_idx}: {s_val}")
-        if len(sents) < 2:
-            return False
-
-        # Original logic: keeps last 2 sentences, trims before sents[-2][1]
-        # Let's ensure we are trimming based on text actually older than the buffer_trimming_sec threshold
-        # The decision to call this function is already based on buffer_trimming_sec.
-        # Here, we find the split point.
-
-        # We want to trim up to the end of the second-to-last sentence, *if* it makes sense.
-        # The original logic:
-        # while len(sents) > 2:
-        #     sents.pop(0)
-        # chunk_at_ts = sents[-2][1] # This assumes sents has at least 2 items after popping.
-        # A simpler approach: find the end of the first sentence if multiple sentences exist.
-        # Trim up to the end of (n-1)th sentence if n sentences exist.
-
-        if len(sents) >= 2:  # Need at least two sentences to trim the earlier one(s)
-            # Find the end timestamp of all sentences except the last one
-            # Example: if 3 sents, trim up to end of sent[1]. if 2 sents, trim up to end of sent[0]
-            chunk_at_ts = sents[-2][1]  # End of the second to last sentence
-            if chunk_at_ts > self.buffer_time_offset:  # Ensure trimming point is valid
-                logger.debug(f"--- sentence chunked at {chunk_at_ts:.2f}")
-                self.chunk_at(chunk_at_ts)
-                return True
-            else:
-                logger.debug(
-                    f"--- sentence chunk: target trim point {chunk_at_ts:.2f} is not after buffer_time_offset {self.buffer_time_offset:.2f}")
-        return False
-
-    def chunk_completed_segment(self, res):  # res can be an actual ASR result or empty_asr_result
+    def _trim_buffer_by_segment(self, asr_result: Any):
+        """
+        Finds a safe cut point based on ASR segments and trims the buffer.
+        """
         if not self.commited:
-            logger.debug(
-                "--- chunk_completed_segment: No commited text yet. Cannot trim based on ASR segments alignment with committed text.")
-            return False
+            logger.debug("Cannot trim by segment yet: no text has been committed.")
+            return
 
-        # Ensure 'res' is a dict and has 'segments' key
-        if not (isinstance(res, dict) and "segments" in res):
+        segment_ends_relative = self.asr.segments_end_ts(asr_result)
+        if not segment_ends_relative:
+            return
+
+        last_committed_time_abs = self.commited[-1][1]
+
+        # Find the latest segment end that occurred before the last committed word.
+        # This is a safe point to cut the audio.
+        suitable_cut_point = None
+        for seg_end in sorted(segment_ends_relative, reverse=True):
+            seg_end_abs = seg_end + self.buffer_time_offset
+            if seg_end_abs <= last_committed_time_abs and seg_end_abs > self.buffer_time_offset:
+                suitable_cut_point = seg_end_abs
+                break
+
+        if suitable_cut_point:
+            self._chunk_at_timestamp(suitable_cut_point)
+
+    def _apply_fallback_trim(self, asr_success: bool):
+        """
+        Forcefully trims the buffer if ASR is failing and the buffer is too long.
+        This prevents the process from getting stuck.
+        """
+        buffer_len_after_trim = len(self.audio_buffer) / self.SAMPLING_RATE
+        is_failing = not asr_success and self.consecutive_asr_failures >= self.MAX_CONSECUTIVE_ASR_FAILURES
+        is_too_long = buffer_len_after_trim > (self.buffer_trimming_sec + self.FALLBACK_TRIM_THRESHOLD_SEC)
+
+        if is_failing and is_too_long:
             logger.warning(
-                f"--- chunk_completed_segment: 'res' (type: {type(res)}) is not a valid ASR result structure or missing 'segments'. Cannot trim based on new ASR segments.")
-            current_asr_segment_ends = []
-        else:
-            current_asr_segment_ends = self.asr.segments_end_ts(
-                res)  # e.g., [0.5, 1.2, 2.0] relative to current audio_buffer start
+                f"ASR failing and buffer is too long ({buffer_len_after_trim:.2f}s). "
+                f"Applying fallback trim."
+            )
+            discard_seconds = self.min_chunk_sec
+            self._chunk_at_timestamp(self.buffer_time_offset + discard_seconds)
 
-        last_committed_word_end_time_abs = self.commited[-1][1]
-
-        suitable_chunk_point_abs = None
-
-        if current_asr_segment_ends:
-            # Convert segment ends to absolute time and find the latest one that is <= last_committed_word_end_time_abs
-            # These segments are from the *current* ASR processing attempt.
-            for seg_end_relative in sorted(current_asr_segment_ends, reverse=True):
-                seg_end_abs = seg_end_relative + self.buffer_time_offset
-                if seg_end_abs <= last_committed_word_end_time_abs and seg_end_abs > self.buffer_time_offset:
-                    suitable_chunk_point_abs = seg_end_abs
-                    break
-
-            if suitable_chunk_point_abs:
-                logger.debug(
-                    f"--- segment chunked at {suitable_chunk_point_abs:.2f} (based on current ASR segments ending before or at last committed word {last_committed_word_end_time_abs:.2f})")
-                self.chunk_at(suitable_chunk_point_abs)
-                return True
-            else:
-                logger.debug(
-                    f"--- chunk_completed_segment: No current ASR segment end found suitable for trimming relative to last committed word {last_committed_word_end_time_abs:.2f}.")
-                return False
-        else:
-            # No current ASR segments (e.g., ASR failed or produced no segments)
-            # In this case, we can't use ASR segments to guide trimming.
-            # The fallback trim in process_iter will handle persistent ASR failures if buffer grows too large.
-            logger.debug(
-                "--- chunk_completed_segment: No segment end timestamps from current ASR result. Cannot trim based on new ASR segments.")
-            return False
-
-    def chunk_at(self, time):
+    def _chunk_at_timestamp(self, time: float):
+        """
+        Cuts the audio buffer and all corresponding transcript buffers at a specific time.
+        """
         cut_seconds = time - self.buffer_time_offset
-        if cut_seconds <= 0:  # Cannot cut at or before the current start of the buffer
-            logger.debug(
-                f"chunk_at: Attempted to cut at or before buffer_time_offset ({time:.2f} <= {self.buffer_time_offset:.2f}). No cut made.")
+        if cut_seconds <= 0 or cut_seconds > len(self.audio_buffer) / self.SAMPLING_RATE:
             return
 
-        # Ensure we don't cut more than available
-        cut_samples = min(int(cut_seconds * self.SAMPLING_RATE), len(self.audio_buffer))
+        cut_samples = int(cut_seconds * self.SAMPLING_RATE)
 
-        if cut_samples <= 0:
-            logger.debug(f"chunk_at: Calculated zero or negative samples to cut ({cut_samples}). No cut made.")
-            return
+        logger.debug(f"Trimming {cut_seconds:.2f}s from audio buffer. New offset: {time:.2f}")
 
-        logger.debug(
-            f"chunk_at: Trimming {cut_samples / self.SAMPLING_RATE:.2f}s from audio_buffer. Current offset: {self.buffer_time_offset:.2f}, new offset: {time:.2f}")
+        # Trim all relevant buffers
         self.audio_buffer = self.audio_buffer[cut_samples:]
-        self.buffer_time_offset = time  # Update to the exact trim time
-
-        # Clean up buffers based on the new offset
+        self.buffer_time_offset = time
         self.transcript_buffer.pop_commited(self.buffer_time_offset)
         self.commited = [item for item in self.commited if item[1] > self.buffer_time_offset]
 
-    def words_to_sentences(self, words):
-        if not self.tokenizer:
-            logger.warning("Tokenizer is None, cannot split words into sentences.")
-            # Fallback: treat each word group (if any) as a sentence or return based on VAD segments if available
-            # For simplicity, if no tokenizer, just return the words as a single "sentence"
-            if not words: return []
-            return [(words[0][0], words[-1][1], " ".join(w[2] for w in words))]
+    def _get_prompt(self) -> str:
+        """
+        Generates a context prompt from the recently committed text for the ASR.
+        """
+        # Find text that is older than the current audio buffer to use as a prompt.
+        k = len(self.commited)
+        while k > 0 and self.commited[k - 1][1] > self.buffer_time_offset:
+            k -= 1
 
-        # Original logic for words_to_sentences
-        cwords = [w for w in words]  # Make a copy
-        text_to_segment = " ".join(o[2] for o in cwords)
-        try:
-            segmented_sentences_text = self.tokenizer.split(text_to_segment)
-        except Exception as e:
-            logger.error(f"Error during sentence tokenization: {e}. Treating input as a single sentence.")
-            if not words: return []
-            return [(words[0][0], words[-1][1], text_to_segment)]
+        prompt_words = [t for _, _, t in self.commited[:k]]
 
-        out_sentences = []
-        current_word_idx = 0
-        for sent_text in segmented_sentences_text:
-            sent_text_clean = sent_text.strip()
-            if not sent_text_clean:
-                continue
+        # Extract the last ~200 characters.
+        prompt_list = []
+        char_count = 0
+        while prompt_words and char_count < 200:
+            word = prompt_words.pop(-1)
+            char_count += len(word) + 1
+            prompt_list.append(word)
 
-            sentence_start_time = None
-            sentence_end_time = None
-            accumulated_words_for_sentence = []
+        return self.asr.sep.join(prompt_list[::-1])
 
-            temp_sent_text_matcher = sent_text_clean
-            start_idx_for_this_sentence = current_word_idx
+    def _format_output(self, words: List[Tuple[float, float, str]]) -> Tuple[Optional[float], Optional[float], str]:
+        """
+        Formats a list of word tuples into a single segment tuple.
+        """
+        if not words:
+            return (None, None, "")
 
-            for i in range(start_idx_for_this_sentence, len(words)):
-                word_start_time, word_end_time, word_text = words[i]
-                word_text_clean = word_text.strip()
+        text = self.asr.sep.join(w[2] for w in words)
+        start_time = words[0][0]
+        end_time = words[-1][1]
+        return (start_time, end_time, text)
 
-                if not temp_sent_text_matcher:  # Should not happen if sent_text_clean was not empty
-                    break
+    def finish(self) -> Tuple[Optional[float], Optional[float], str]:
+        """
+        Processes any remaining audio and returns the final uncommitted transcript.
 
-                if temp_sent_text_matcher.startswith(word_text_clean):
-                    if sentence_start_time is None:
-                        sentence_start_time = word_start_time
+        Call this method at the very end of the stream to ensure no audio is lost.
+        """
+        # Get the final, uncommitted part of the transcript.
+        final_words = self.transcript_buffer.complete()
 
-                    accumulated_words_for_sentence.append(word_text)  # Use original word text for rejoining
-                    sentence_end_time = word_end_time  # Keep updating end time
+        logger.debug(f"Final, uncommitted transcript: {final_words}")
+        self.init()  # Reset for potential reuse.
+        return self._format_output(final_words)
 
-                    # Remove matched part
-                    temp_sent_text_matcher = temp_sent_text_matcher[len(word_text_clean):].strip()
-                    current_word_idx = i + 1  # Advance current_word_idx past this word for next sentence
 
-                    if not temp_sent_text_matcher:  # Full sentence matched
-                        break
-                else:
-                    # Word mismatch, tokenizer might have altered words or split differently
-                    # This indicates a potential issue with tokenizer vs. ASR word alignment
-                    logger.warning(
-                        f"Sentence segmentation mismatch: Expected start of '{temp_sent_text_matcher}' but found '{word_text_clean}'. Sentence: '{sent_text_clean}'")
-                    # Attempt to recover: if we have accumulated some words, form a sentence.
-                    # Or, break and let the outer loop try the next sentence from tokenizer.
-                    # For now, if a mismatch occurs, we might lose this tokenized sentence.
-                    # To be more robust, one might need a more complex alignment.
-                    # Let's assume for now that if it starts matching, it continues.
-                    # If first word doesn't match, this sentence from tokenizer might be skipped for this word list.
-                    if not accumulated_words_for_sentence:  # First word of sentence didn't match
-                        current_word_idx = start_idx_for_this_sentence  # Reset, try this word with next tokenized sentence
-                    break  # Break from inner word loop, go to next tokenized sentence
+ASR_BACKENDS = {
+    "whisper_timestamped": WhisperTimestampedASR,
+    "mlx-whisper": MLXWhisper,
+    # "faster-whisper": FasterWhisperASR, # Can be uncommented when implemented
+}
 
-            if sentence_start_time is not None and sentence_end_time is not None:
-                # Rejoin words that formed this sentence to ensure exact text match with ASR output for this segment
-                final_sentence_text = self.asr.sep.join(accumulated_words_for_sentence)
-                out_sentences.append((sentence_start_time, sentence_end_time, final_sentence_text))
-            elif sent_text_clean:  # Tokenizer gave a sentence, but we couldn't align it with words
-                logger.warning(f"Could not align tokenized sentence '{sent_text_clean}' with ASR words.")
 
-        return out_sentences
+def asr_factory(args: argparse.Namespace, logfile=sys.stderr) -> Tuple[ASRBase, OnlineASRProcessor]:
+    """
+    Creates and configures ASR and OnlineASRProcessor instances.
 
-    def finish(self):
-        o = self.transcript_buffer.complete()
-        f = self.to_flush(o)
-        logger.debug(f"last, noncommited: {f}")
-        # self.buffer_time_offset += len(self.audio_buffer) / self.SAMPLING_RATE # Already handled by chunk_at or fallback
-        self.audio_buffer = np.array([], dtype=np.float32)  # Clear buffer on finish
-        return f
+    This factory selects the appropriate ASR backend based on the provided
+    arguments, loads the specified model, and initializes the online processor.
 
-    def to_flush(self, sents, sep=None, offset=0):  # offset is not used as sents have absolute timestamps
-        if sep is None:
-            sep = self.asr.sep
-        t = sep.join(s[2] for s in sents)
-        if not sents:
-            b = None
-            e = None
-        else:
-            b = sents[0][0]
-            e = sents[-1][1]
-        return (b, e, t)
+    Args:
+        args (argparse.Namespace): The command-line arguments.
+        logfile: A file-like object for logging.
 
+    Returns:
+        Tuple[ASRBase, OnlineASRProcessor]: A tuple containing the initialized
+        ASR backend and the online ASR processor.
+
+    Raises:
+        ValueError: If an unsupported backend is specified in the arguments.
+        NotImplementedError: If a backend is defined but not yet implemented.
+    """
+    # 1. Select the ASR backend class from the mapping.
+    backend_name = args.backend
+    asr_cls = ASR_BACKENDS.get(backend_name)
+
+    if not asr_cls:
+        # Handle unsupported or unimplemented backends cleanly.
+        if backend_name in ["openai-api", "faster-whisper"]:
+            raise NotImplementedError(f"The '{backend_name}' backend is not yet implemented.")
+        raise ValueError(
+            f"Unsupported ASR backend: '{backend_name}'. Available backends are: {list(ASR_BACKENDS.keys())}")
+
+    # 2. Load the specified ASR model.
+    t = time.time()
+    logger.info(f"Loading Whisper model '{args.model}' for language '{args.lan}' using '{backend_name}' backend...")
+
+    asr = asr_cls(
+        modelsize=args.model,
+        lan=args.lan,
+        cache_dir=args.model_cache_dir,
+        model_dir=args.model_dir
+    )
+
+    e = time.time()
+    logger.info(f"Model loaded in {e - t:.2f} seconds.")
+
+    # 3. Apply any common configurations to the ASR instance.
+    if getattr(args, 'vad', False):
+        logger.info("Voice Activity Detection (VAD) is not available.")
+        raise NotImplementedError
+
+    # 4. Create the online processor.
+    if args.vac:
+        raise NotImplementedError("Voice Activity Controller (VAC) is not yet implemented.")
+
+    online = OnlineASRProcessor(
+        asr=asr,
+        logfile=logfile,
+        buffer_trimming=(args.buffer_trimming, args.buffer_trimming_sec)
+    )
+
+    return asr, online
 
 
 def add_shared_args(parser):
@@ -483,52 +485,6 @@ def add_shared_args(parser):
     parser.add_argument("-l", "--log-level", dest="log_level",
                         choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'], help="Set the log level",
                         default='DEBUG')
-
-
-def asr_factory(args, logfile=sys.stderr):
-    """
-    Creates and configures an ASR and ASR Online instance based on the specified backend and arguments.
-    """
-    backend = args.backend
-    if backend == "openai-api":
-        logger.debug("Using OpenAI API.")
-        # asr = OpenaiApiASR(lan=args.lan)
-    else:
-        if backend == "faster-whisper":
-            asr_cls = FasterWhisperASR
-        elif backend == "mlx-whisper":
-            asr_cls = MLXWhisper
-        else:
-            asr_cls = WhisperTimestampedASR
-
-        # Only for FasterWhisperASR and WhisperTimestampedASR
-        size = args.model
-        t = time.time()
-        logger.info(f"Loading Whisper {size} model for {args.lan}...")
-        asr = asr_cls(modelsize=size, lan=args.lan, cache_dir=args.model_cache_dir, model_dir=args.model_dir)
-        e = time.time()
-        logger.info(f"done. It took {round(e - t, 2)} seconds.")
-
-    # Apply common configurations
-    if getattr(args, 'vad', False):  # Checks if VAD argument is present and True
-        logger.info("Setting VAD filter")
-        asr.use_vad()
-
-    language = args.lan
-
-    tgt_language = language  # Whisper transcribes in this language
-    tokenizer = None
-
-    # Create the OnlineASRProcessor
-    if args.vac:
-
-        online = VACOnlineASRProcessor(args.min_chunk_size, asr, tokenizer, logfile=logfile,
-                                       buffer_trimming=(args.buffer_trimming, args.buffer_trimming_sec))
-    else:
-        online = OnlineASRProcessor(asr, tokenizer, logfile=logfile,
-                                    buffer_trimming=(args.buffer_trimming, args.buffer_trimming_sec))
-
-    return asr, online
 
 
 def set_logging(args, logger, other="_server"):

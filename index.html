@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <script src="https://unpkg.com/wavesurfer.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://kit.fontawesome.com/02ee14764b.js?v=4" crossorigin="anonymous"></script>
+    <link href="https://unpkg.com/vis-timeline@latest/styles/vis-timeline-graph2d.min.css" rel="stylesheet" type="text/css" />
+    <script src="https://unpkg.com/vis-timeline@latest/standalone/umd/vis-timeline-graph2d.min.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Whisper Transcription: Configure Model</title>
+    <link rel="stylesheet" href="/static/style.css?v=2">
+</head>
+<body>
+
+    <div id="view-model-selection">
+        <h1>Configure ASR Engine</h1>
+        <label for="config-json">ASR Engine Parameters (JSON):</label>
+        <textarea id="config-json" class="config-json" rows="10"></textarea>
+        <button id="load-model-button">Load Engine and Start</button>
+    </div>
+
+    <div id="view-loading" class="view-hidden">
+        <div class="spinner"></div><h2>Loading ASR Engine...</h2>
+        <p>This may take a moment, especially on the first run.</p>
+    </div>
+
+    <div id="view-transcription" class="view-hidden"> 
+        <div class="container">
+
+            <div class="tabs">
+                <button class="tab-button active" data-tab="record">Record Audio</button>
+                <button class="tab-button" data-tab="upload">Upload Audio File</button>
+                <button class="tab-button" data-tab="metrics">Evaluation Metrics</button>
+            </div>
+
+            <!-- Modal for editing timeline item -->
+            <div id="timeline-edit-modal" style="display:none; position:fixed; left:0; top:0; width:100vw; height:100vh; background:rgba(0,0,0,0.4); z-index:1000; align-items:center; justify-content:center;">
+                <div style="background:#fff; padding:20px; border-radius:8px; min-width:300px; width: 30%; gap: 12px; display: flex; flex-direction: column;">
+                    <h3 style="margin: 0;">Edit Segment</h3>
+                    <label style="width: 95%;">Text:
+                    <input type="text" id="timeline-edit-text" style="width:100%; margin-top: 8px;     border: 1px solid var(--border-light); border-radius: 4px; padding: 4px 7px;">
+                    </label>
+                    <label style="width: 95%;">Start (seconds):
+                    <input type="number" id="timeline-edit-start" step="0.01" style="width:100%; margin-top: 8px;  border: 1px solid var(--border-light);    border-radius: 4px; padding: 4px 7px;">
+                    </label>
+                    <label style="width: 95%;">End (seconds):
+                    <input type="number" id="timeline-edit-end" step="0.01" style="width:100%; margin-top: 8px;  border: 1px solid var(--border-light);    padding: 4px 7px; padding: 4px 7px;">
+                    </label>
+                    <div style="display: flex; gap: 8px;">
+                        <button id="timeline-edit-save" style="flex: 1 1 50%; border: 1px solid var(--border-light);    padding: 4px 7px; padding: 4px 7px;">Save</button>
+                        <button id="timeline-edit-cancel" style="flex: 1 1 50%; border: 1px solid var(--border-light);    padding: 4px 7px; padding: 4px 7px;">Cancel</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="record" class="tab-content active">
+                <div class="container">
+
+                    <!-- Recording Waveform Container -->
+                    <div class="waveform-container">
+                        <p class="badge">Click & Speak</p>
+
+                        <div id="mic" style="border-radius: 4px; margin-top: 40px; min-height: 100px;"></div>
+                        
+                        <div style="display: flex; justify-content: center; align-items: center; gap: 14px; margin-top: 40px;">
+                            <div id="start-button">
+                                <img src="static/assets/microphone_icon.png" style="width: 21px;" alt="microphone" class="microphone-icon">
+                                <p class="start-button-txt" style="margin: 0;">Start Recording</p>
+                            </div>
+
+                            <div id="recording-status" style="display: flex; align-items: center; justify-content: center; gap: 8px; display: none;">
+                                <div class="recording-dot"></div>
+                                <span id="recording-timer">00:00</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Transcript Box -->
+                    <div class="waveform-container">
+                        <p class="badge">Transcript</p>
+                        <div class="transcript-container" id="transcript-container">
+                            <p id="transcript-text">Speak to see transcript...</p>
+                        </div>
+                    </div>
+
+                    <!-- Playback Waveform Container -->
+                    <div class="waveform-container">
+                        <p class="badge">Playback</p>
+                        
+                        <div id="recordings" style="margin-top: 40px;"></div>
+
+                        <div class="controls-container" >
+                            <button id="play-mic-recording" class="play-recording">
+                                <img src="static/assets/play_icon.png" class="play_btn" alt="play" style="width: 18px;">
+                            </button>
+                            <div class="audio_duration_container">
+                                <p class="audio_duration" style="margin-top: 21px;">00:00</p>
+                                <span>/</span>
+                                <p class="total_audio_duration_record">00.00</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Timeline Container -->
+                    <div class="waveform-container">
+                        <p class="badge">Timeline</p>
+                        <div id="transcript-timeline" style="margin: 2em 0;"></div>
+                    </div>
+
+                    <!-- Table Container -->
+                    <div class="waveform-container">
+                        <p class="badge">Table</p>
+                        <div class="table-container">
+                            <table>
+                                <thead><tr><th>Start (s)</th><th>End (s)</th><th>Text</th></tr></thead>
+                                <tbody id="segments-table-body"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                    
+                </div>
+            </div>
+
+            <div id="metrics" class="tab-content">
+                <div class="container">
+                    <form id="eval-form">
+                        <div class="form-group">
+                            <div style="
+                                display: flex;
+                                gap: 12px;
+                                align-items: center;
+                            ">
+                                <label for="audio">Select audio file:</label>
+                                <div class="controls" id="custom-audio-upload" style="margin: 0;">
+                                    <i class="fa-solid fa-arrow-up-from-bracket"></i>
+                                    <input type="file" name="audio" id="audio" class="audio-evaluation" accept="audio/*" required>
+                                </div>
+                            </div>
+                            <div id="selected-filename-container" style="display:none;">
+                                <span id="selected-filename"></span>
+                                <button type="button" id="remove-file-btn"><i class="fa-solid fa-trash"></i></button>
+                            </div>
+                        </div>
+                        <div class="form-group" style="margin-top: 2em;">
+                            <label for="reference">Input reference transcript:</label>
+                            <textarea name="reference" id="reference" class="config-json" placeholder="Reference transcript (e.g., 'Hello world')" required rows="4"></textarea>
+                        </div>
+                        <button disabled type="submit" id="evaluation-btn" class="custom-file-label">Run Evaluation</button>
+                    </form>
+
+                    <p style="font-weight: 400; margin-bottom: 0; margin-top: 2em;">Evaluation Results:</p>
+                    <div id="metrics_div"></div>
+                </div>
+            </div>
+
+            <div id="upload" class="tab-content">
+                <div class="container">
+                    <!-- Playback Waveform Container -->
+                    <div class="waveform-container">                        
+                        <div class="controls upload_file">
+                             <label for="audio_file" class="custom-file-upload">
+                                <img src="static/assets/upload_icon.png" alt="upload" style="width: 16px;">
+                                <p style="font-size: 14px;">Choose File</p>
+                            </label>
+                            <input type="file" name="audio_file" id="audio_file" accept="audio/*" required style="display: none;">      
+                        </div>
+                                                
+                        <div id="no-file-message" class="no-file-message">
+                            <i class="fa-solid fa-arrow-up-from-bracket" style="font-size: 2.5em; color: #71717A; margin-bottom: 0.5em;"></i>
+                            <p>No audio file selected</p>
+                            <p>Upload an audio file to see the waveform</p>
+                        </div>
+
+                        <div id="waveform" style="margin-top: 1em; display: none;" ></div>
+                        
+                        <div class="controls-container-upload" style="margin-top: 12px; display: none;">
+                            <button id="play-upload-recording" class="play-recording">
+                                <img  id="play-btn-img" src="static/assets/play_icon.png" class="play_btn" alt="play" style="width: 20px;">
+                            </button>
+                            <div class="audio_duration_container">
+                                <p id="progress" class="audio_duration">00:00</p>
+                                <span>/</span>
+                                <p class="total_audio_duration">00.00</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button id="start-trasncript-btn" type="submit" disabled>Start Transcription</button>
+                    
+                    <!-- Timeline Container -->
+                    <div class="waveform-container">
+                        <p class="badge">Timeline</p>
+                        <div id="transcript-timeline-upload" style="margin: 2em 0;"></div>
+                    </div>
+
+                    <!-- Transcript Box -->
+                    <div class="waveform-container">
+                        <p class="badge">Transcript</p>
+                        <div class="transcript-container" id="transcript-container">
+                            <p id="output">Upload a file to see transcript...</p>
+                        </div>
+                    </div>
+
+                    <!-- Table Container -->
+                    <div class="waveform-container">
+                        <p class="badge">Table</p>
+                         <div class="table-container">
+                            <table>
+                                <thead><tr><th>Start (s)</th><th>End (s)</th><th>Text</th></tr></thead>
+                                <tbody id="segments-table-body-upload"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Script for managing audio recording -->
+    <script src="/static/scripts/audio_recording_script.js?v=4"></script>
+    <!-- Script for managing audio file upload -->
+    <script src="/static/scripts/audio_file_script.js?v=3" type="module"></script>
+    <!-- Script for managing evaluation metrics -->
+    <script src="/static/scripts/evaluation_script.js?v=2"></script>
+    <!-- Script to manage wavesufer library -->
+    <script src="/static/scripts/wavesurfers.js?v=2" type="module"></script>
+    <script>
+        const audioInput = document.getElementById('audio_file');
+        const startBtn = document.getElementById('start-trasncript-btn');
+
+        audioInput.addEventListener('change', function() {
+            startBtn.disabled = !audioInput.files.length;
+        });
+
+        window.RTC_CONFIGURATION = ##RTC_CONFIGURATION##;
+
+        // --- NEW: TAB NAVIGATION LOGIC ---
+        document.addEventListener('DOMContentLoaded', () => {
+            const tabButtons = document.querySelectorAll('.tab-button');
+            const tabContents = document.querySelectorAll('.tab-content');
+
+            tabButtons.forEach(button => {
+                    button.addEventListener('click', () => {
+                        const targetTab = button.dataset.tab;
+
+                        tabButtons.forEach(btn => btn.classList.remove('active'));
+                        tabContents.forEach(content => content.classList.remove('active'));
+
+                        button.classList.add('active');
+                        document.getElementById(targetTab).classList.add('active');
+                    });
+                });
+        });
+    </script>
+</body>
+</html>

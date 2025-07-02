@@ -1,35 +1,111 @@
 import sys
-
 import logging
-
+from abc import ABC, abstractmethod
+from typing import List, Tuple, Any
 
 logger = logging.getLogger(__name__)
 
 
-class ASRBase:
-    sep = " "  # join transcribe words with this character (" " for whisper_timestamped,
+class ASRBase(ABC):
+    """
+    Abstract Base Class for an Automatic Speech Recognition (ASR) backend.
 
-    # "" for faster-whisper because it emits the spaces when neeeded)
+    This class defines a standard interface that the OnlineASRProcessor can use
+    to interact with different ASR models (e.g., whisper_timestamped, mlx-whisper).
+    Any class inheriting from ASRBase must implement all its abstract methods.
 
-    def __init__(self, lan, modelsize=None, cache_dir=None, model_dir=None, logfile=sys.stderr):
+    Attributes:
+        sep (str): The separator character used to join recognized words.
+                   This can vary by backend (e.g., " " for some, "" for others).
+    """
+    sep = " "  # Default separator
+
+    def __init__(self, lan: str, modelsize: str = None, cache_dir: str = None, model_dir: str = None, logfile=sys.stderr):
+        """
+        Initializes the ASR backend.
+
+        Args:
+            lan (str): Language code (e.g., "en", "de") or "auto" for detection.
+            modelsize (str, optional): The size of the model to load (e.g., "large-v3").
+            cache_dir (str, optional): Directory to cache downloaded models.
+            model_dir (str, optional): Path to a directory containing a pre-downloaded model.
+            logfile: A file-like object for logging.
+        """
         self.logfile = logfile
-
         self.transcribe_kargs = {}
-        if lan == "auto":
-            self.original_language = None
-        else:
-            self.original_language = lan
-
+        self.original_language = None if lan == "auto" else lan
         self.model = self.load_model(modelsize, cache_dir, model_dir)
 
-    def load_model(self, modelsize, cache_dir):
-        raise NotImplemented("must be implemented in the child class")
+    @abstractmethod
+    def load_model(self, modelsize: str = None, cache_dir: str = None, model_dir: str = None):
+        """
+        Loads the ASR model into memory.
 
-    def transcribe(self, audio, init_prompt=""):
-        raise NotImplemented("must be implemented in the child class")
+        This method should handle the specifics of model loading for the backend,
+        whether from a local directory, a cache, or by downloading.
+        """
+        raise NotImplementedError("must be implemented in the child class")
 
+    @abstractmethod
+    def transcribe(self, audio, init_prompt: str = "") -> dict:
+        """
+        Performs transcription on a given audio buffer.
+
+        Args:
+            audio: The audio data to transcribe (e.g., a NumPy array).
+            init_prompt (str, optional): A prompt to initialize the model's context.
+
+        Returns:
+            dict: The raw transcription result from the backend. The structure of this
+                  result must be a dictionary containing a "segments" key, where the
+                  value is a list of segment objects. This structure will be passed
+                  to `ts_words` and `segments_end_ts` for parsing.
+                  e.g. {"text": "...", "segments": [...], "language": "en"}
+        """
+        raise NotImplementedError("must be implemented in the child class")
+
+    @abstractmethod
+    def ts_words(self, transcription_result: Any) -> List[Tuple[float, float, str]]:
+        """
+        Parses the raw transcription result to extract word-level timestamps.
+
+        This method acts as an adapter, converting the backend-specific output
+        of `transcribe()` into a standardized format required by OnlineASRProcessor.
+
+        Args:
+            transcription_result (Any): The raw output from this class's `transcribe` method.
+
+        Returns:
+            List[Tuple[float, float, str]]: A list of tuples, where each tuple
+            represents a word as (start_time, end_time, word_text).
+        """
+        raise NotImplementedError("must be implemented in the child class")
+
+    @abstractmethod
+    def segments_end_ts(self, transcription_result: Any) -> List[float]:
+        """
+        Parses the raw transcription result to extract segment end timestamps.
+
+        This is used by OnlineASRProcessor's buffer trimming logic to find safe
+        points to cut the audio buffer.
+
+        Args:
+            transcription_result (Any): The raw output from this class's `transcribe` method.
+
+        Returns:
+            List[float]: A list of timestamps (in seconds) indicating the
+                         end of each detected speech segment.
+        """
+        raise NotImplementedError("must be implemented in the child class")
+
+    @abstractmethod
     def use_vad(self):
-        raise NotImplemented("must be implemented in the child class")
+        """
+        Enables Voice Activity Detection (VAD) for the ASR model, if supported.
+        """
+        raise NotImplementedError("must be implemented in the child class")
+
+
 
 
 class WhisperTimestampedASR(ASRBase):
