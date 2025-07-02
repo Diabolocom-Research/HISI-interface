@@ -409,6 +409,10 @@ thead th {
     color: white !important;
 }
 
+#waveform ::part(region) {
+    border: none;
+}
+
 .vis-custom-time.cursor {
     background-color: orange !important;
 }

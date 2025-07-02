@@ -209,12 +209,11 @@ document.getElementById('audio_file').addEventListener('change', function(e) {
 
         if (timeline) {
             timeline.setOptions({
-                // end: Math.min(10000, duration * 1000), // Show first 10 seconds or full duration if shorter
-                max: duration * 1000 + 2000,
+                max: duration * 1000 + 1000,
             });
-            // Move to the beginning and reset zoom
-            timeline.moveTo(1, { animation: false });
-            lastWaveformZoom = 100; // Reset zoom tracking
+
+            timeline.moveTo(1);
+            lastWaveformZoom = 100;
         }
     });
 });
@@ -259,14 +258,7 @@ async function startTranscription() {
 
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
-    let output = '';
-
-    // if (timeline) {
-    //     console.log('Timeline initialized, setting up for transcription');
-    //     timeline.zoomIn(0.9);
-    //     timeline.moveTo(1, { animation: false });
-    // }
-
+    
     // Only start playback if not already playing
     if (!wavesurfer.isPlaying()) {
         wavesurfer.play(); 
@@ -377,7 +369,7 @@ function initTimeline() {
         min: 0,
         max: 10000, 
         start: 0,    // Start at the beginning
-        end: 10000,  // Show first 10 seconds initially
+        // end: 10000,  // Show first 10 seconds initially
         zoomMin: 100,    // Minimum zoom matches waveform's minPxPerSec default
         zoomMax: 10000, // Maximum zoom proportional to waveform's maxZoom
         zoomFriction: 5, // Adjusted for smoother sync
@@ -420,7 +412,7 @@ function updateTimeline(segments) {
         colorIndex++; // Move to next color
     });
 
-    if (segments.length > 0) {
-        timeline.fit();
-    }
+    // if (segments.length > 0) {
+    //     timeline.fit();
+    // }
 }

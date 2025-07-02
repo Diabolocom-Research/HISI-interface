@@ -10,6 +10,20 @@ const recordedRegions = RegionsPlugin.create();
 window.isPlaybackCreated = false;
 
 let wavesurfer, record
+let colorIndex = 0; 
+
+// Create a new Wavesurfer instance
+wavesurfer = WaveSurfer.create({
+  container: '#mic',
+  waveColor: '#F8A05D',
+  progressColor: '#E96C64',
+  barGap: 3,
+  barHeight: 4,
+  minPxPerSec: 1,
+  barWidth: 3,
+  barRadius: 10,
+})
+
 let scrollingWaveform = false
 let continuousWaveform = true
 
@@ -19,6 +33,13 @@ const playButton = document.getElementById('play-mic-recording');
 const recButton = document.querySelector('#start-button')
 const rectText = document.querySelector('.start-button-txt');
 const micImg = document.querySelector('.microphone-icon');
+
+const colors = [
+    "rgba(186, 233, 255, 0.5)", // Light blue, semi-transparent
+    "rgba(201, 247, 210, 0.5)", // Light green, semi-transparent
+    "rgba(248, 235, 185, 0.5)", // Light yellow, semi-transparent
+    "rgba(194, 192, 255, 0.5)", // Light purple, semi-transparent
+]
 
 // Define the audio process handler as a named function
 function onAudioProcess(currentTime) {
@@ -57,30 +78,12 @@ let loop = false
     img.src = 'static/assets/pause_icon.png';
   })
   // Reset the active region when the user clicks anywhere in the waveform
-  // wavesurfer.on('interaction', () => {
-  //   activeRegion = null
-  // })
+  wavesurfer.on('interaction', () => {
+    activeRegion = null
+  })
 }
 
 const createWaveSurfer = () => {
-  // Destroy the previous wavesurfer instance
-  if (wavesurfer) {
-    wavesurfer.destroy()
-  }
-
-  console.log('Creating new Wavesurfer instance...')
-
-  // Create a new Wavesurfer instance
-  wavesurfer = WaveSurfer.create({
-    container: '#mic',
-    waveColor: '#F8A05D',
-    progressColor: '#E96C64',
-    barGap: 3,
-    barHeight: 4,
-    barWidth: 3,
-    barRadius: 10,
-  })
-  
   // Initialize the Record plugin
   record = wavesurfer.registerPlugin(
     RecordPlugin.create({
@@ -141,9 +144,12 @@ const createWaveSurfer = () => {
                 start: segment.start,
                 end: segment.end,
                 content: segment.text,
-                color: "rgba(186, 233, 255, 0.5)",
+                drag: false,
+                resize: false,
+                color: colors[colorIndex % colors.length],
                 id: `segment-${index}`,
             });
+            colorIndex++; 
         })
     });
 
