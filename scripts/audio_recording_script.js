@@ -111,7 +111,7 @@ function initTimeline() {
         zoomMin: 100,    
         zoomMax: 10000,
         zoomFriction: 5,
-        height: '150px'
+        height: '180px'
     };
     timeline = new vis.Timeline(container, timelineItems, options);
     // Add new vertical bar representing a custom time
@@ -239,6 +239,8 @@ async function loadModel() {
 async function setupWebRTC() {
     // Immediately update the button state when we start
     startButtonText.textContent = 'Connecting...';
+
+    document.getElementById('mic').style.display = 'block';
 
     try {
         const config = window.RTC_CONFIGURATION;

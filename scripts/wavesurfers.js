@@ -130,6 +130,7 @@ const createWaveSurfer = () => {
     window.lastRecordedWaveSurfer = lastRecordedWaveSurfer;
     
     lastRecordedWaveSurfer.on('ready', () => {
+        container.style.height = '128px';
         window.isPlaybackCreated = true;
         console.log('segemtns', window.segments);
 
@@ -151,6 +152,10 @@ const createWaveSurfer = () => {
             });
             colorIndex++; 
         })
+        
+        window.timeline.setOptions({
+            max: duration * 1000 + 1000,
+        });
     });
 
     lastRecordedWaveSurfer.on('click', (e) => {

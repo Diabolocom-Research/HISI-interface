@@ -149,7 +149,7 @@ wavesurfer.on('pause', () => {
 function onAudioProcess(currentTime) {
     const minutes = Math.floor(currentTime / 60);
     const seconds = Math.floor(currentTime % 60).toString().padStart(2, '0');
-    document.querySelector('.audio_duration').textContent = `${minutes}:${seconds}`;
+    document.getElementById('progress').textContent = `${minutes}:${seconds}`;
     if (window.timeline2) {
         console.log('Updating timeline cursor to:', currentTime * 1000);
         window.timeline2.setCustomTime(currentTime * 1000, 'cursor');
@@ -173,7 +173,7 @@ wavesurfer.on('click', (e) => {
     timeline.moveTo(currentTime * 1000, { animation: false });
     const minutes = Math.floor(currentTime / 60);
     const seconds = Math.floor(currentTime % 60).toString().padStart(2, '0');
-    document.querySelector('.audio_duration').textContent = `${minutes}:${seconds}`;
+    document.getElementById('progress').textContent = `${minutes}:${seconds}`;
 });
 
 document.getElementById('audio_file').addEventListener('change', function(e) {
@@ -373,7 +373,7 @@ function initTimeline() {
         zoomMin: 100,    // Minimum zoom matches waveform's minPxPerSec default
         zoomMax: 10000, // Maximum zoom proportional to waveform's maxZoom
         zoomFriction: 5, // Adjusted for smoother sync
-        height: '150px'
+        height: '180px'
     };
     timeline = new vis.Timeline(container, timelineItems, options);
     // Add new vertical bar representing a custom time

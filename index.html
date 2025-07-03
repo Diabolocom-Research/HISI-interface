@@ -9,7 +9,7 @@
     <script src="https://unpkg.com/vis-timeline@latest/standalone/umd/vis-timeline-graph2d.min.js"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Whisper Transcription: Configure Model</title>
-    <link rel="stylesheet" href="/static/scripts/style.css?v=2">
+    <link rel="stylesheet" href="/static/scripts/style.css?v=1">
 </head>
 <body>
 
@@ -61,7 +61,7 @@
                     <div class="waveform-container">
                         <p class="badge">Click & Speak</p>
 
-                        <div id="mic" style="border-radius: 4px; margin-top: 40px; min-height: 100px;"></div>
+                        <div id="mic" style="border-radius: 4px; margin-top: 40px; min-height: 100px; display: none;"></div>
                         
                         <div style="display: flex; justify-content: center; align-items: center; gap: 14px; margin-top: 40px;">
                             <div id="start-button">
@@ -110,7 +110,7 @@
 
                     <!-- Table Container -->
                     <div class="waveform-container">
-                        <p class="badge">Table</p>
+                        <p class="badge">Segments Table</p>
                         <div class="table-container">
                             <table>
                                 <thead><tr><th>Start (s)</th><th>End (s)</th><th>Text</th></tr></thead>
@@ -191,7 +191,7 @@
                     <!-- Timeline Container -->
                     <div class="waveform-container">
                         <p class="badge">Timeline</p>
-                        <div id="transcript-timeline-upload" style="margin: 2em 0;"></div>
+                        <div id="transcript-timeline-upload" style="margin: 2em 0; margin-bottom: 0;"></div>
                     </div>
 
                     <!-- Transcript Box -->
@@ -204,7 +204,7 @@
 
                     <!-- Table Container -->
                     <div class="waveform-container">
-                        <p class="badge">Table</p>
+                        <p class="badge">Segments Table</p>
                          <div class="table-container">
                             <table>
                                 <thead><tr><th>Start (s)</th><th>End (s)</th><th>Text</th></tr></thead>
