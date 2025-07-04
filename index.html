@@ -179,7 +179,7 @@
                     <!-- Playback Waveform Container -->
                     <div class="waveform-container">                        
                         <div class="controls upload_file">
-                             <label for="audio_file" class="custom-file-upload">
+                            <label for="audio_file" class="custom-file-upload">
                                 <img src="static/assets/upload_icon.png" alt="upload" style="width: 16px;">
                                 <p style="font-size: 14px;">Select File</p>
                             </label>
@@ -241,19 +241,12 @@
     <!-- Script for managing audio recording -->
     <script src="/static/scripts/audio_recording_script.js?v=2"></script>
     <!-- Script for managing audio file upload -->
-    <script src="/static/scripts/audio_file_script.js?v=2" type="module"></script>
+    <script src="/static/scripts/audio_file_script.js?v=1" type="module"></script>
     <!-- Script for managing evaluation metrics -->
     <script src="/static/scripts/evaluation_script.js?v=1"></script>
     <!-- Script to manage wavesufer library -->
     <script src="/static/scripts/wavesurfers.js?v=1" type="module"></script>
     <script>
-        const audioInput = document.getElementById('audio_file');
-        const startBtn = document.getElementById('start-trasncript-btn');
-
-        audioInput.addEventListener('change', function() {
-            startBtn.disabled = !audioInput.files.length;
-        });
-
         window.RTC_CONFIGURATION = ##RTC_CONFIGURATION##;
 
         // --- NEW: TAB NAVIGATION LOGIC ---
