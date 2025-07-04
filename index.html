@@ -9,7 +9,7 @@
     <script src="https://unpkg.com/vis-timeline@latest/standalone/umd/vis-timeline-graph2d.min.js"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Whisper Transcription: Configure Model</title>
-    <link rel="stylesheet" href="/static/scripts/style.css?v=1">
+    <link rel="stylesheet" href="/static/scripts/style.css?v=2">
 </head>
 <body>
 
@@ -122,35 +122,55 @@
                 </div>
             </div>
 
-            <div id="metrics" class="tab-content">
+           <div id="metrics" class="tab-content">
                 <div class="container">
                     <form id="eval-form">
                         <div class="form-group">
-                            <div style="
-                                display: flex;
-                                gap: 12px;
-                                align-items: center;
-                            ">
-                                <label for="audio">Select audio file:</label>
-                                <div class="controls" id="custom-audio-upload" style="margin: 0;">
-                                    <i class="fa-solid fa-arrow-up-from-bracket"></i>
-                                    <input type="file" name="audio" id="audio" class="audio-evaluation" accept="audio/*" required>
+                            <label for="audio" style="font-weight: 500;">Select audio file for evaluation:</label>
+                            
+                            <!-- Enhanced File Upload Area -->
+                            <div class="file-upload-area" id="file-upload-area">
+                                <div class="upload-content">
+                                    <i class="fa-solid fa-cloud-arrow-up upload-icon"></i>
+                                    <h3>Drag & drop your audio file here</h3>
+                                    <p>or click to browse files</p>
+                                    <span class="file-types">Supported: MP3, WAV, M4A, FLAC</span>
                                 </div>
+                                <input type="file" name="audio" id="audio" class="audio-evaluation" accept="audio/*" required>
                             </div>
-                            <div id="selected-filename-container" style="display:none;">
-                                <span id="selected-filename"></span>
-                                <button type="button" id="remove-file-btn"><i class="fa-solid fa-trash"></i></button>
+                            
+                            <!-- Selected File Display -->
+                            <div id="selected-file-display" class="selected-file-display" style="display:none;">
+                                <div class="file-info">
+                                    <i class="fa-solid fa-file-audio file-icon"></i>
+                                    <div class="file-details">
+                                        <span class="filename" id="selected-filename"></span>
+                                        <span class="file-size" id="selected-filesize"></span>
+                                    </div>
+                                </div>
+                                <button type="button" id="remove-file-btn" class="remove-btn" title="Remove file">
+                                    <i class="fa-solid fa-xmark"></i>
+                                </button>
                             </div>
                         </div>
+                        
                         <div class="form-group" style="margin-top: 2em;">
-                            <label for="reference">Input reference transcript:</label>
-                            <textarea name="reference" id="reference" class="config-json" placeholder="Reference transcript (e.g., 'Hello world')" required rows="4"></textarea>
+                            <label style="font-weight: 500;" for="reference">Reference transcript:</label>
+                            <div class="textarea-wrapper">
+                                <textarea name="reference" id="reference" class="reference-textarea" placeholder="Enter the expected transcript" required rows="4"></textarea>
+                            </div>
                         </div>
-                        <button disabled type="submit" id="evaluation-btn" class="custom-file-label">Run Evaluation</button>
+                        
+                        <button disabled type="submit" id="evaluation-btn" class="evaluation-btn">
+                            <i class="fa-solid fa-chart-line"></i>
+                            Run Evaluation
+                        </button>
                     </form>
 
-                    <p style="font-weight: 400; margin-bottom: 0; margin-top: 2em;">Evaluation Results:</p>
-                    <div id="metrics_div"></div>
+                    <div class="results-section">
+                        <p style="font-weight: 500; padding-left: 2px;">Evaluation Results:</p>
+                        <div id="metrics_div" class="metrics-container"></div>
+                    </div>
                 </div>
             </div>
 
@@ -161,7 +181,7 @@
                         <div class="controls upload_file">
                              <label for="audio_file" class="custom-file-upload">
                                 <img src="static/assets/upload_icon.png" alt="upload" style="width: 16px;">
-                                <p style="font-size: 14px;">Choose File</p>
+                                <p style="font-size: 14px;">Select File</p>
                             </label>
                             <input type="file" name="audio_file" id="audio_file" accept="audio/*" required style="display: none;">      
                         </div>
@@ -223,9 +243,9 @@
     <!-- Script for managing audio file upload -->
     <script src="/static/scripts/audio_file_script.js?v=2" type="module"></script>
     <!-- Script for managing evaluation metrics -->
-    <script src="/static/scripts/evaluation_script.js?v=2"></script>
+    <script src="/static/scripts/evaluation_script.js?v=1"></script>
     <!-- Script to manage wavesufer library -->
-    <script src="/static/scripts/wavesurfers.js?v=2" type="module"></script>
+    <script src="/static/scripts/wavesurfers.js?v=1" type="module"></script>
     <script>
         const audioInput = document.getElementById('audio_file');
         const startBtn = document.getElementById('start-trasncript-btn');

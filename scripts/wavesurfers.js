@@ -131,10 +131,10 @@ const createWaveSurfer = () => {
     
     lastRecordedWaveSurfer.on('ready', () => {
         container.style.height = '128px';
-        window.isPlaybackCreated = true;
-        console.log('segemtns', window.segments);
+        console.log('segemtns', window.segments, window.timeline);
 
         attachZoomSync();
+        
         const duration = lastRecordedWaveSurfer.getDuration();
         const minutes = Math.floor(duration / 60);
         const seconds = Math.floor(duration % 60).toString().padStart(2, '0');
@@ -156,6 +156,8 @@ const createWaveSurfer = () => {
         window.timeline.setOptions({
             max: duration * 1000 + 1000,
         });
+
+        window.timeline.moveTo(1, { animation: false });
     });
 
     lastRecordedWaveSurfer.on('click', (e) => {

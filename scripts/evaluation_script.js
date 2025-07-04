@@ -1,45 +1,9 @@
-const input = document.querySelector('.audio-evaluation');
-const filenameContainer = document.getElementById('selected-filename-container');
-const filenameSpan = document.getElementById('selected-filename');
-const removeBtn = document.getElementById('remove-file-btn');
-const audioMetrics = document.getElementById('audio');
-const textarea = document.getElementById('reference');
-const runBtn = document.getElementById('evaluation-btn');
-
-function checkInputs() {
-    runBtn.disabled = !(audioMetrics.files.length > 0 && textarea.value.trim().length > 0);
-}
-
-audioMetrics.addEventListener('change', checkInputs);
-textarea.addEventListener('input', checkInputs);
-
-document.getElementById('custom-audio-upload').addEventListener('click', function() {
-    document.getElementById('audio').click();
-});
-
-input.addEventListener('change', function() {
-    if (input.files.length) {
-        filenameSpan.textContent = input.files[0].name;
-        filenameContainer.style.display = 'flex';
-    } else {
-        filenameSpan.textContent = '';
-        filenameContainer.style.display = 'none';
-    }
-});
-
-removeBtn.addEventListener('click', function() {
-    input.value = '';
-    filenameSpan.textContent = '';
-    filenameContainer.style.display = 'none';
-});
-
 document.getElementById('eval-form').onsubmit = async function(e) {
     e.preventDefault(); // Prevent default form submission
 
     const metricsDiv = document.getElementById('metrics_div');
     metricsDiv.innerHTML = '<div class="spinner" style="margin-top: 20px; margin: 0 auto;"></div>'; // Show loading spinner
     metricsDiv.style.marginTop = '15px';
-    // metricsDiv.classList.add('loading');
 
     const formData = new FormData(this); // Get form data including file
 
@@ -77,3 +41,115 @@ document.getElementById('eval-form').onsubmit = async function(e) {
         metricsDiv.innerHTML = `<p style="color: red;">Error during evaluation: ${error.message}</p>`;
     }
 };
+
+// Enhanced File Upload UI - Wait for DOM to be ready
+document.addEventListener('DOMContentLoaded', () => {
+    // Only initialize if we're on the metrics tab or elements exist
+    const fileUploadArea = document.getElementById('file-upload-area');
+    const audioInput = document.getElementById('audio');
+    const selectedFileDisplay = document.getElementById('selected-file-display');
+    const filenameSpan = document.getElementById('selected-filename');
+    const filesizeSpan = document.getElementById('selected-filesize');
+    const removeBtn = document.getElementById('remove-file-btn');
+    const evaluationBtn = document.getElementById('evaluation-btn');
+    const referenceTextarea = document.getElementById('reference');
+
+    // Check if all required elements exist before proceeding
+    if (!fileUploadArea || !audioInput || !selectedFileDisplay || !filenameSpan || 
+        !filesizeSpan || !removeBtn || !evaluationBtn || !referenceTextarea) {
+        console.warn('Some evaluation UI elements not found, skipping initialization');
+        return;
+    }
+
+    console.log('Initializing evaluation file upload UI...');
+
+    // Click to upload functionality
+    fileUploadArea.addEventListener('click', (e) => {
+        if (e.target === fileUploadArea || e.target.closest('.upload-content')) {
+            audioInput.click();
+        }
+    });
+
+    // Drag and drop functionality
+    fileUploadArea.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        fileUploadArea.classList.add('dragover');
+    });
+
+    fileUploadArea.addEventListener('dragleave', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        fileUploadArea.classList.remove('dragover');
+    });
+
+    fileUploadArea.addEventListener('drop', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        fileUploadArea.classList.remove('dragover');
+        
+        const files = e.dataTransfer.files;
+        if (files.length > 0 && files[0].type.startsWith('audio/')) {
+            // Create a new FileList-like object
+            const dt = new DataTransfer();
+            dt.items.add(files[0]);
+            audioInput.files = dt.files;
+            handleFileSelection(files[0]);
+        }
+    });
+
+    // File input change
+    audioInput.addEventListener('change', (e) => {
+        console.log('File input changed:', e.target.files);
+        if (e.target.files.length > 0) {
+            handleFileSelection(e.target.files[0]);
+        }
+    });
+
+    // Handle file selection
+    function handleFileSelection(file) {
+        console.log('Handling file selection:', file.name);
+        filenameSpan.textContent = file.name;
+        filesizeSpan.textContent = formatFileSize(file.size);
+        
+        fileUploadArea.style.display = 'none';
+        selectedFileDisplay.style.display = 'flex';
+        
+        updateEvaluationButton();
+    }
+
+    // Remove file
+    removeBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        console.log('Removing file...');
+        audioInput.value = '';
+        fileUploadArea.style.display = 'block';
+        selectedFileDisplay.style.display = 'none';
+        updateEvaluationButton();
+    });
+
+    // Character count for textarea
+    referenceTextarea.addEventListener('input', () => {
+        updateEvaluationButton();
+    });
+
+    // Update evaluation button state
+    function updateEvaluationButton() {
+        const hasFile = audioInput.files.length > 0;
+        const hasReference = referenceTextarea.value.trim().length > 0;
+        evaluationBtn.disabled = !(hasFile && hasReference);
+        console.log('Button state - hasFile:', hasFile, 'hasReference:', hasReference, 'disabled:', evaluationBtn.disabled);
+    }
+
+    // Format file size
+    function formatFileSize(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+
+    // Initial button state
+    updateEvaluationButton();
+});
