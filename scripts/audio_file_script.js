@@ -239,59 +239,10 @@ wavesurfer.on('click', (e) => {
 });
 
 document.getElementById('audio_file').addEventListener('change', function(e) {
-    console.log('File input changed:');
     const file = e.target.files[0];
     const noFileMessage = document.getElementById('no-file-message');
     const waveformContainer = document.getElementById('waveform');
-    const startBtn = document.getElementById('start-trasncript-btn');
-    const audioInput = document.getElementById('audio_file');
-
-    startBtn.disabled = !file;
-
-    if (wavesurfer) {
-        if (wavesurfer.isPlaying()) {
-            wavesurfer.pause();
-            const img = document.querySelector('.play_btn');
-            img.src = 'static/assets/play_icon.png';
-        } 
-
-        regions.clearRegions();
-
-        document.getElementById('progress').textContent = '0:00';
-    }
-
-    if (timelineItems) {
-        timelineItems.clear();
-    }
-
-    if (timeline) {
-        timeline.setCustomTime(0, 'cursor');
-    }
-
-    const segmentsTableBody = document.getElementById('segments-table-body-upload');
-    if (segmentsTableBody) {
-        segmentsTableBody.innerHTML = '';
-    }
     
-    const output = document.getElementById('output');
-    if (output) {
-        output.textContent = '';
-    }
-
-    addedSegmentKeys = new Set();
-    colorIndex = 0;
-    
-    const controlsContainer = document.querySelector('.controls-container-upload');
-    
-    if (controlsContainer) {
-        controlsContainer.style.display = 'none';
-    }
-
-    const transcriptBtn = document.getElementById('start-trasncript-btn');
-    if (transcriptBtn) {
-        transcriptBtn.textContent = 'Start Transcription';
-    }
-
     if (file) {
         // Reset everything when a new file is uploaded
         resetAllData();
