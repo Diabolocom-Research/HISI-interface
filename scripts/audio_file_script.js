@@ -1,3 +1,65 @@
+// --- RESET FUNCTION FOR NEW FILE UPLOADS ---
+function resetAllData() {
+    // Reset transcription output
+    const outputElement = document.getElementById('output');
+    if (outputElement) {
+        outputElement.textContent = '';
+    }
+    
+    // Reset segments table
+    const segmentsTableBody = document.getElementById('segments-table-body-upload');
+    if (segmentsTableBody) {
+        segmentsTableBody.innerHTML = '';
+    }
+    
+    // Clear timeline items
+    if (timelineItems) {
+        timelineItems.clear();
+    }
+    
+    // Clear regions from wavesurfer
+    if (regions) {
+        regions.clearRegions();
+    }
+    
+    // Reset added segment keys
+    addedSegmentKeys = new Set();
+    
+    // Reset color index
+    colorIndex = 0;
+    
+    // Reset progress display
+    const progressElement = document.getElementById('progress');
+    if (progressElement) {
+        progressElement.textContent = '0:00';
+    }
+    
+    // Reset transcription button text
+    const transcriptBtn = document.getElementById('start-trasncript-btn');
+    if (transcriptBtn) {
+        transcriptBtn.textContent = 'Start Transcription';
+    }
+    
+    // Reset play button icon
+    const playBtnImg = document.getElementById('play-btn-img');
+    if (playBtnImg) {
+        playBtnImg.src = 'static/assets/play_icon.png';
+    }
+    
+    // Reset timeline cursor if timeline exists
+    if (timeline) {
+        timeline.setCustomTime(0, 'cursor');
+        timeline.moveTo(0, { animation: false });
+    }
+    
+    // Stop any current playback
+    if (wavesurfer && wavesurfer.isPlaying()) {
+        wavesurfer.stop();
+    }
+    
+    console.log('All data reset for new file upload');
+}
+
 // -- WaveSurfer.js to handle audio file upload and playback --
 let timeline, timelineItems;
 
@@ -182,6 +244,9 @@ document.getElementById('audio_file').addEventListener('change', function(e) {
     const waveformContainer = document.getElementById('waveform');
     
     if (file) {
+        // Reset everything when a new file is uploaded
+        resetAllData();
+        
         // Hide the no-file message
         if (noFileMessage) {
             noFileMessage.style.display = 'none';

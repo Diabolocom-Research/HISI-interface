@@ -9,7 +9,7 @@
     <script src="https://unpkg.com/vis-timeline@latest/standalone/umd/vis-timeline-graph2d.min.js"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Whisper Transcription: Configure Model</title>
-    <link rel="stylesheet" href="/static/scripts/style.css?v=2">
+    <link rel="stylesheet" href="/static/scripts/style.css?v=3">
 </head>
 <body>
 
@@ -59,7 +59,13 @@
 
                     <!-- Recording Waveform Container -->
                     <div class="waveform-container">
-                        <p class="badge">Click & Speak</p>
+                        <div style="display: flex; justify-content: flex-end; align-items: center;">
+                            <p class="badge" style="margin-right: auto;">Click & Speak</p>
+                            <button id="reset-recording-btn" class="reset-btn" style="background: #ef4444; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 12px; display: none;">
+                                <i class="fa-solid fa-rotate-left" style="margin-right: 6px;"></i>
+                                Reset All
+                            </button>
+                        </div>
 
                         <div id="mic" style="border-radius: 4px; margin-top: 40px; min-height: 100px; display: none;"></div>
                         
@@ -243,9 +249,9 @@
     <!-- Script for managing audio file upload -->
     <script src="/static/scripts/audio_file_script.js?v=2" type="module"></script>
     <!-- Script for managing evaluation metrics -->
-    <script src="/static/scripts/evaluation_script.js?v=1"></script>
+    <script src="/static/scripts/evaluation_script.js?v=2"></script>
     <!-- Script to manage wavesufer library -->
-    <script src="/static/scripts/wavesurfers.js?v=1" type="module"></script>
+    <script src="/static/scripts/wavesurfers.js?v=2" type="module"></script>
     <script>
         const audioInput = document.getElementById('audio_file');
         const startBtn = document.getElementById('start-trasncript-btn');

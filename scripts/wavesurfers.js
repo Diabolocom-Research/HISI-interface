@@ -158,6 +158,11 @@ const createWaveSurfer = () => {
         });
 
         window.timeline.moveTo(1, { animation: false });
+        
+        // Show reset button since we now have a recording
+        if (window.showResetButtonIfNeeded) {
+            window.showResetButtonIfNeeded();
+        }
     });
 
     lastRecordedWaveSurfer.on('click', (e) => {

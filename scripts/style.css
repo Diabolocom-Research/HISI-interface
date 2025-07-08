@@ -179,6 +179,7 @@ body {
     justify-content: flex-start;
     transition: background-color 0.2s ease;
     cursor: pointer;
+    border-radius: 4px;
 }
 
 .controls.upload_file:hover {
@@ -238,7 +239,7 @@ button:disabled {
     background: transparent;
     margin: 0;
     border: 1px solid var(--border-light);
-    border-radius: 6px;
+    border-radius: 4px;
     display: flex;
     justify-content: center;
     align-items: center;
@@ -250,7 +251,8 @@ button:disabled {
 
 #start-button {
     padding: 8px 12px;
-    border-radius: 8px;
+    font-size: 14px;
+    border-radius: 4px;
     color: white;
     background-color: #EF4444;
     display: flex;
@@ -294,6 +296,16 @@ button:disabled {
 }
 #start-button:hover {
     background-color: #921818;
+}
+
+#start-button:disabled {
+    background-color: #9ca3af;
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+#start-button:disabled:hover {
+    background-color: #9ca3af;
 }
 
 .play-recording:hover {
@@ -354,6 +366,7 @@ thead th {
     justify-content: center;
     align-items: center;
     gap: 8px;
+    border-radius: 4px;
 }
 
 /* Waveform */
@@ -733,4 +746,39 @@ input[type="file"].audio-evaluation,
 .metrics-container:empty::before {
     content: "Run an evaluation to see results here...";
     color: #9ca3af;
+}
+
+/* Reset Button Styles */
+.reset-btn {
+    background: #ef4444;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: background-color 0.2s ease;
+    display: none;
+}
+
+.reset-btn:hover {
+    background: #dc2626;
+}
+
+.reset-btn:active {
+    background: #b91c1c;
+}
+
+.reset-btn:disabled {
+    background: #9ca3af;
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.reset-btn:disabled:hover {
+    background: #9ca3af;
+}
+
+.reset-btn i {
+    margin-right: 6px;
 }

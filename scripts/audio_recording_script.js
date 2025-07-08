@@ -1,3 +1,104 @@
+// --- RESET FUNCTION FOR RECORDING ---
+function resetRecordingData() {
+    // Stop any active recording
+    if (peerConnection) {
+        stop();
+    }
+    
+    // Clear transcript
+    if (transcriptTextElement) {
+        transcriptTextElement.textContent = 'Speak to see transcript...';
+    }
+    
+    // Clear segments table
+    if (segmentsTableBody) {
+        segmentsTableBody.innerHTML = '';
+    }
+    
+    // Clear timeline items
+    if (timelineItems) {
+        timelineItems.clear();
+    }
+    
+    // Reset timeline cursor
+    if (timeline) {
+        timeline.setCustomTime(0, 'cursor');
+        timeline.moveTo(0, { animation: false });
+        timeline.setOptions({ max: 10000 });
+    }
+    
+    // Clear regions from playback waveform
+    if (window.regions) {
+        window.regions.clearRegions();
+    }
+    
+    // Reset recorded waveform
+    if (window.lastRecordedWaveSurfer) {
+        window.lastRecordedWaveSurfer.destroy();
+        window.lastRecordedWaveSurfer = null;
+    }
+    
+    // Clear recordings container
+    const recordingsContainer = document.getElementById('recordings');
+    if (recordingsContainer) {
+        recordingsContainer.innerHTML = '';
+    }
+    
+    // Reset playback controls
+    const controlsContainer = document.querySelector('.controls-container');
+    if (controlsContainer) {
+        controlsContainer.style.display = 'none';
+    }
+    
+    // Reset audio duration displays
+    const audioDuration = document.querySelector('.audio_duration');
+    const totalAudioDuration = document.querySelector('.total_audio_duration_record');
+    if (audioDuration) audioDuration.textContent = '00:00';
+    if (totalAudioDuration) totalAudioDuration.textContent = '00:00';
+    
+    // Reset play button icon
+    const playBtn = document.querySelector('.play_btn');
+    if (playBtn) {
+        playBtn.src = 'static/assets/play_icon.png';
+    }
+    
+    // Reset global state
+    historicalTranscript = '';
+    currentSegments = [];
+    recordingDuration = 0;
+    
+    // Stop recording timer
+    stopRecordingTimer();
+    
+    // Hide mic visualization
+    const micElement = document.getElementById('mic');
+    if (micElement) {
+        micElement.style.display = 'none';
+    }
+    
+    // Reset button state
+    updateButtonState();
+    
+    // Re-enable start button after reset
+    if (startButton) {
+        startButton.disabled = false;
+        startButton.style.opacity = '1';
+        startButton.style.cursor = 'pointer';
+    }
+    if (startButtonText) {
+        startButtonText.textContent = 'Start Recording';
+    }
+    
+    // Hide reset button since there's nothing to reset now
+    const resetBtn = document.getElementById('reset-recording-btn');
+    if (resetBtn) {
+        resetBtn.style.display = 'none';
+        resetBtn.disabled = false; // Ensure it's not disabled for next use
+    }
+    
+    console.log('Recording data reset complete');
+}
+
 // --- TIMELINE CODE ---
 let timeline, timelineItems;
 let recordingTimer = null;
@@ -141,14 +242,10 @@ function updateTimeline(segments) {
             max: segment.start * 1000 + 2000,
         });
     
-        timeline.fit();
+        // timeline.fit();
     });
     
     window.segments = segments;
-
-    if (segments.length > 0) {
-        timeline.fit();
-    }
 }
 
 // --- DOM REFERENCES ---
@@ -184,16 +281,58 @@ const defaultConfig = {
 
 // --- CORE LOGIC ---
 function updateButtonState() {
+    const resetBtn = document.getElementById('reset-recording-btn');
+    
     if (!peerConnection || peerConnection.connectionState === "closed" || peerConnection.connectionState === "failed") {
-        startButtonText.textContent = 'Start Recording';
+        // Check if we have any recorded data - if so, disable start button
+        const hasTranscript = transcriptTextElement && transcriptTextElement.textContent.trim() !== 'Speak to see transcript...';
+        const hasSegments = currentSegments && currentSegments.length > 0;
+        const hasRecording = window.lastRecordedWaveSurfer;
+        
+        if (hasTranscript || hasSegments || hasRecording) {
+            // Recording session has ended with data - disable start button
+            startButtonText.textContent = 'Recording Complete';
+            startButton.style.opacity = '0.5';
+            startButton.style.cursor = 'not-allowed';
+            startButton.disabled = true;
+        } else {
+            // No data yet - enable start button
+            startButtonText.textContent = 'Start Recording';
+            startButton.style.opacity = '1';
+            startButton.style.cursor = 'pointer';
+            startButton.disabled = false;
+        }
+        
         micImg.src = 'static/assets/microphone_icon.png'; 
         stopRecordingTimer(); // Stop timer when not recording
+        
+        // Enable reset button if there's data to reset
+        if (resetBtn) {
+            resetBtn.disabled = false;
+            showResetButtonIfNeeded();
+        }
     } else if (peerConnection.connectionState === "connecting" || peerConnection.connectionState === "new") {
         startButtonText.textContent = 'Connecting...';
+        startButton.disabled = false; // Keep enabled during connection
+        startButton.style.opacity = '1';
+        startButton.style.cursor = 'pointer';
+        
+        // Disable reset button during connection
+        if (resetBtn) {
+            resetBtn.disabled = true;
+        }
     } else if (peerConnection.connectionState === "connected") {
         startButtonText.textContent = 'Stop Recording';
         micImg.src = 'static/assets/stop_recording.png'; 
         startRecordingTimer(); // Start timer when recording begins
+        startButton.disabled = false; // Keep enabled so user can stop
+        startButton.style.opacity = '1';
+        startButton.style.cursor = 'pointer';
+        
+        // Disable reset button while recording
+        if (resetBtn) {
+            resetBtn.disabled = true;
+        }
     }
 }
 
@@ -322,6 +461,9 @@ function handleServerUpdate(data) {
         });
 
         updateTimeline(segments);
+        
+        // Show reset button if there's data to reset
+        showResetButtonIfNeeded();
     } catch (e) {
         console.error("Failed to parse server data:", data, e);
     }
@@ -385,11 +527,6 @@ function stop() {
         historicalTranscript = transcriptTextElement.textContent + "\n\n";
     }
     
-    // // Delay adding regions to ensure waveform is ready
-    // setTimeout(() => {
-    //     addRegionsToRecordedWaveform();
-    // }, 500); // 500ms delay
-    
     updateButtonState();
 }
 
@@ -408,6 +545,11 @@ configTextarea.value = JSON.stringify(defaultConfig, null, 2);
 loadModelButton.addEventListener('click', loadModel);
 
 startButton.addEventListener('click', () => {
+    // Don't proceed if button is disabled
+    if (startButton.disabled) {
+        return;
+    }
+    
     if (!peerConnection || peerConnection.connectionState === "closed") { 
         setupWebRTC(); 
     }
@@ -415,3 +557,32 @@ startButton.addEventListener('click', () => {
         stop(); 
     }
 });
+
+// Add reset button event listener
+document.addEventListener('DOMContentLoaded', () => {
+    const resetBtn = document.getElementById('reset-recording-btn');
+    if (resetBtn) {
+        resetBtn.addEventListener('click', () => {
+            resetRecordingData();
+        });
+    }
+});
+
+// Show reset button when there's data to reset
+function showResetButtonIfNeeded() {
+    const resetBtn = document.getElementById('reset-recording-btn');
+    if (!resetBtn) return;
+    
+    const hasTranscript = transcriptTextElement && transcriptTextElement.textContent.trim() !== 'Speak to see transcript...';
+    const hasSegments = currentSegments && currentSegments.length > 0;
+    const hasRecording = window.lastRecordedWaveSurfer;
+    
+    if (hasTranscript || hasSegments || hasRecording) {
+        resetBtn.style.display = 'block';
+    } else {
+        resetBtn.style.display = 'none';
+    }
+}
+
+// Make function available globally
+window.showResetButtonIfNeeded = showResetButtonIfNeeded;
