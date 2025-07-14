@@ -9,7 +9,7 @@
     <script src="https://unpkg.com/vis-timeline@latest/standalone/umd/vis-timeline-graph2d.min.js"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Whisper Transcription: Configure Model</title>
-    <link rel="stylesheet" href="/static/scripts/style.css?v=3">
+    <link rel="stylesheet" href="/static/scripts/style.css?v=2">
 </head>
 <body>
 
@@ -58,26 +58,32 @@
                 <div class="container">
 
                     <!-- Recording Waveform Container -->
-                    <div class="waveform-container">
-                        <div style="display: flex; justify-content: flex-end; align-items: center;">
-                            <p class="badge" style="margin-right: auto;">Click & Speak</p>
-                            <button id="reset-recording-btn" class="reset-btn" style="background: #ef4444; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 12px; display: none;">
-                                <i class="fa-solid fa-rotate-left" style="margin-right: 6px;"></i>
-                                Reset All
-                            </button>
+                    <div class="waveform-container-new-recording">
+                        <div id="no-recording-message" class="no-recording-message">
+                            <img src="static/assets/speaker_black_icon_48.png" alt="speaker" style="width: 58px; margin-bottom: 8px;">
+                            <p>No recording started</p>
+                            <p>Press "Start Recording" to preview the waveform</p>
                         </div>
 
-                        <div id="mic" style="border-radius: 4px; margin-top: 40px; min-height: 100px; display: none;"></div>
+                        <div id="mic" style="border-radius: 4px; min-height: 100px; display: none; height: calc(100% - 40px); max-height: 222px; width: 100%;"></div>
                         
-                        <div style="display: flex; justify-content: center; align-items: center; gap: 14px; margin-top: 40px;">
-                            <div id="start-button">
-                                <img src="static/assets/microphone_icon.png" style="width: 21px;" alt="microphone" class="microphone-icon">
-                                <p class="start-button-txt" style="margin: 0;">Start Recording</p>
+                        <div class="controls-audio-upload">
+                            <div id="start-button" style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin-left: 10px;">
+                                <img src="static/assets/microphone_icon.png" style="width: 18px;" alt="microphone" class="microphone-icon">
+                                <p class="start-button-txt" style="margin: 0; font-size: 14px;">Start Recording</p>
                             </div>
 
-                            <div id="recording-status" style="display: flex; align-items: center; justify-content: center; gap: 8px; display: none;">
-                                <div class="recording-dot"></div>
-                                <span id="recording-timer">00:00</span>
+                            <div class="left_controls">
+                                <div id="recording-status" style="display: none; align-items: center; justify-content: center; gap: 8px; color: #333; font-family: monospace; font-size: 14px;">
+                                    <div class="recording-dot"></div>
+                                    <span id="recording-timer">00:00</span>
+                                </div>
+                            </div>
+
+                            <div class="right_controls">
+                                <div class="img_container" id="reset-recording-btn-container" style="display: none;">
+                                    <img src="/static/assets/reload_black_icon_48.png" style="width: 18px; height: 18px;" id="reset-recording-btn-icon" alt="reset">
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -91,19 +97,27 @@
                     </div>
 
                     <!-- Playback Waveform Container -->
-                    <div class="waveform-container">
-                        <p class="badge">Playback</p>
-                        
-                        <div id="recordings" style="margin-top: 40px;"></div>
+                    <div class="waveform-container-new">
+                        <div id="recordings" style="margin-top: 1em; height: calc(100% - 40px); max-height: 222px;"></div>
 
-                        <div class="controls-container" >
-                            <button id="play-mic-recording" class="play-recording">
-                                <img src="static/assets/play_icon.png" class="play_btn" alt="play" style="width: 18px;">
-                            </button>
-                            <div class="audio_duration_container">
-                                <p class="audio_duration" style="margin-top: 21px;">00:00</p>
-                                <span>/</span>
-                                <p class="total_audio_duration_record">00.00</p>
+                        <div class="controls-audio-upload">
+                            <div class="left_controls">
+                                <div class="img_container" id="play-mic-recording-container">
+                                    <img src="/static/assets/play_black_icon_48.png" id="play-mic-recording" class="play_btn" alt="play">
+                                </div>
+
+                                <div class="img_container speaker-recording">
+                                    <img src="/static/assets/mute_black_icon_48.png" alt="speaker">
+                                </div>
+                            </div>
+
+                            <div class="right_controls">
+                                <div class="img_container">
+                                    <p class="audio_duration">00:00:00</p>
+                                </div>
+                                <div class="total_duration_container">
+                                    <p class="total_audio_duration_record">00:00:00</p>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -111,16 +125,25 @@
                     <!-- Timeline Container -->
                     <div class="waveform-container">
                         <p class="badge">Timeline</p>
-                        <div id="transcript-timeline" style="margin: 2em 0;"></div>
+                        <div id="transcript-timeline" style="margin-top: 2em;"></div>
                     </div>
 
-                    <!-- Table Container -->
-                    <div class="waveform-container">
-                        <p class="badge">Segments Table</p>
-                        <div class="table-container">
-                            <table>
-                                <thead><tr><th>Start (s)</th><th>End (s)</th><th>Text</th></tr></thead>
-                                <tbody id="segments-table-body"></tbody>
+                    <!-- Segments Table Container -->
+                    <div class="segments-table-container">
+                        <div class="table-wrapper">
+                            <table class="segments-table" id="segments-table-recording">
+                                <thead>
+                                    <tr>
+                                        <th>Start Time</th>
+                                        <th>End Time</th>
+                                        <th>Duration</th>
+                                        <th>Text/Content</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="segments-table-body-recording">
+                                    <!-- Segments will be populated here -->
+                                </tbody>
                             </table>
                         </div>
                     </div>
@@ -183,33 +206,49 @@
             <div id="upload" class="tab-content">
                 <div class="container">
                     <!-- Playback Waveform Container -->
-                    <div class="waveform-container">                        
-                        <div class="controls upload_file">
-                            <label for="audio_file" class="custom-file-upload">
-                                <img src="static/assets/upload_icon.png" alt="upload" style="width: 16px;">
-                                <p style="font-size: 14px;">Select File</p>
-                            </label>
-                            <input type="file" name="audio_file" id="audio_file" accept="audio/*" required style="display: none;">      
-                        </div>
+                    <div class="waveform-container-new"> 
                                                 
                         <div id="no-file-message" class="no-file-message">
-                            <i class="fa-solid fa-arrow-up-from-bracket" style="font-size: 2.5em; color: #71717A; margin-bottom: 0.5em;"></i>
+                            <img src="/static/assets/file_black_icon_96.png" alt="file" style="width: 68px; margin-bottom: 10px;">
                             <p>No audio file selected</p>
-                            <p>Upload an audio file to see the waveform</p>
+                            <p>Upload an audio file to preview the waveform</p>
                         </div>
 
                         <div id="waveform" style="margin-top: 1em; display: none;" ></div>
                         
-                        <div class="controls-container-upload" style="margin-top: 12px; display: none;">
-                            <button id="play-upload-recording" class="play-recording">
-                                <img  id="play-btn-img" src="static/assets/play_icon.png" class="play_btn" alt="play" style="width: 20px;">
-                            </button>
-                            <div class="audio_duration_container">
-                                <p id="progress" class="audio_duration">00:00</p>
-                                <span>/</span>
-                                <p class="total_audio_duration">00.00</p>
+                        <div class="controls-audio-upload">
+                                <div class="img_container" style="margin-left: 10px;">
+                                    <label for="audio_file" class="custom-file-upload">
+                                        <img src="/static/assets/upload_black_icon_48.png" style="width: 18px; height: 18px;" alt="upload">
+                                    </label>
+                                    <input type="file" name="audio_file" id="audio_file" accept="audio/*" required style="display: none;">      
+                                </div>
+                                <div class="img_container" style="margin-left: 2px;">
+                                    <img src="/static/assets/reload_black_icon_48.png" style="width: 18px; height: 18px;" id="resetDataBtn" alt="">
+                                </div>
+
+                                <div class="left_controls">
+                                    <div class="img_container" id="play-upload-recording-container">
+                                        <img src="/static/assets/play_black_icon_48.png" id="play-upload-recording" alt="play">
+                                    </div>
+
+                                    <div class="img_container speaker">
+                                        <img src="/static/assets/mute_black_icon_48.png" alt="speaker">
+                                    </div>
+                                </div>
+
+                                <div class="right_controls">
+                                    <div class="img_container">
+                                        <p class="zoom_level">0.5x</p>
+                                    </div>
+                                    <div class="img_container">
+                                        <p id="progress" class="current_duration">00:00:00</p>
+                                    </div>
+                                    <div class="total_duration_container">
+                                        <p class="total_audio_duration">00:00:00</p>
+                                    </div>
+                                </div>
                             </div>
-                        </div>
                     </div>
 
                     <button id="start-trasncript-btn" type="submit" disabled>Start Transcription</button>
@@ -228,13 +267,21 @@
                         </div>
                     </div>
 
-                    <!-- Table Container -->
-                    <div class="waveform-container">
-                        <p class="badge">Segments Table</p>
-                         <div class="table-container">
-                            <table>
-                                <thead><tr><th>Start (s)</th><th>End (s)</th><th>Text</th></tr></thead>
-                                <tbody id="segments-table-body-upload"></tbody>
+                    <div class="segments-table-container">
+                        <div class="table-wrapper">
+                            <table class="segments-table" id="segments-table-upload">
+                                <thead>
+                                    <tr>
+                                        <th>Start Time</th>
+                                        <th>End Time</th>
+                                        <th>Duration</th>
+                                        <th>Text/Content</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="segments-table-body-upload">
+                                    <!-- Segments will be populated here -->
+                                </tbody>
                             </table>
                         </div>
                     </div>

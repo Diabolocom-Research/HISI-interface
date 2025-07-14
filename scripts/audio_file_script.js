@@ -24,6 +24,7 @@ function resetAllData() {
     
     // Reset added segment keys
     addedSegmentKeys = new Set();
+    addedSegmentKeysTable = new Set(); // Also reset table tracking
     
     // Reset color index
     colorIndex = 0;
@@ -31,19 +32,20 @@ function resetAllData() {
     // Reset progress display
     const progressElement = document.getElementById('progress');
     if (progressElement) {
-        progressElement.textContent = '0:00';
+        progressElement.textContent = '00:00:00';
     }
     
     // Reset transcription button text
     const transcriptBtn = document.getElementById('start-trasncript-btn');
     if (transcriptBtn) {
         transcriptBtn.textContent = 'Start Transcription';
+        transcriptBtn.disabled = false; // Re-enable the button
     }
     
     // Reset play button icon
-    const playBtnImg = document.getElementById('play-btn-img');
+    const playBtnImg = document.getElementById('play-upload-recording');
     if (playBtnImg) {
-        playBtnImg.src = 'static/assets/play_icon.png';
+        playBtnImg.src = 'static/assets/play_black_icon_48.png';
     }
     
     // Reset timeline cursor if timeline exists
@@ -66,6 +68,8 @@ let timeline, timelineItems;
 import WaveSurfer from 'https://unpkg.com/wavesurfer.js@7/dist/wavesurfer.esm.js'
 import ZoomPlugin from 'https://unpkg.com/wavesurfer.js@7/dist/plugins/zoom.esm.js'
 import RegionsPlugin from 'https://unpkg.com/wavesurfer.js@7/dist/plugins/regions.esm.js'
+import TimelinePlugin from 'https://unpkg.com/wavesurfer.js@7/dist/plugins/timeline.esm.js'
+import Minimap from 'https://unpkg.com/wavesurfer.js@7/dist/plugins/minimap.esm.js'
 
 const regions = RegionsPlugin.create()
 
@@ -74,10 +78,16 @@ const wavesurfer = WaveSurfer.create({
     waveColor: '#E96C64',
     progressColor: '#F8A05D',
     minPxPerSec: 1,
-    plugins: [regions],
-    barGap: 3,
-    barHeight: 4,
-    barWidth: 3,
+    plugins: [regions, TimelinePlugin.create(),
+        Minimap.create({
+            height: 30,
+            waveColor: '#E96C64',
+            progressColor: '#F8A05D',
+        })
+    ],
+    barGap: 0,
+    barHeight: 3,
+    barWidth: 2,
     barRadius: 10,
 });
 
@@ -112,7 +122,7 @@ let loop = false
     activeRegion = region
     region.play(true)
     const img = document.querySelector('.play_btn');
-    img.src = 'static/assets/pause_icon.png';
+    img.src = 'static/assets/pause_black_icon_48.png';
   })
   // Reset the active region when the user clicks anywhere in the waveform
   wavesurfer.on('interaction', () => {
@@ -147,8 +157,14 @@ document.getElementById('waveform').addEventListener('mousemove', (e) => {
     }
 });
 
+const BASE_ZOOM = 100;
+
 // Waveform and Timeline zoom synchronization (debounced)
 wavesurfer.on('zoom', (minPxPerSec) => {
+    const zoomFactor = minPxPerSec / BASE_ZOOM;
+    const zoomLabel = `${zoomFactor.toFixed(1)}x`; 
+
+    document.querySelector('.zoom_level').textContent = zoomLabel;
     if (timeline && Math.abs(minPxPerSec - lastWaveformZoom) > 5) { // Only sync if significant change
         // Clear existing timeout
         if (zoomTimeout) {
@@ -185,33 +201,32 @@ wavesurfer.on('zoom', (minPxPerSec) => {
     }
 });
 
-document.getElementById('play-upload-recording').addEventListener('click', () => {
-    const img = document.getElementById('play-btn-img');
+document.getElementById('play-upload-recording-container').addEventListener('click', () => {
+    const img = document.getElementById('play-upload-recording');
     if (wavesurfer.isPlaying()) {
         wavesurfer.pause();
-        img.src = 'static/assets/play_icon.png'; 
+        img.src = 'static/assets/play_black_icon_48.png'; 
     } else {
         wavesurfer.play();
-        img.src = 'static/assets/pause_icon.png';
+        img.src = 'static/assets/pause_black_icon_48.png';
         onAudioProcess(wavesurfer.getCurrentTime());
     }
 });
 
 wavesurfer.on('play', () => {
-    const img = document.getElementById('play-btn-img');
-    img.src = 'static/assets/pause_icon.png';
+    const img = document.getElementById('play-upload-recording');
+    img.src = 'static/assets/pause_black_icon_48.png';
     onAudioProcess(wavesurfer.getCurrentTime());
 });
 
 wavesurfer.on('pause', () => {
-    const img = document.getElementById('play-btn-img');
-    img.src = 'static/assets/play_icon.png';
+    const img = document.getElementById('play-upload-recording');
+    img.src = 'static/assets/play_black_icon_48.png';
 });
 
 function onAudioProcess(currentTime) {
-    const minutes = Math.floor(currentTime / 60);
-    const seconds = Math.floor(currentTime % 60).toString().padStart(2, '0');
-    document.getElementById('progress').textContent = `${minutes}:${seconds}`;
+    const formattedTime = new Date(currentTime * 1000).toISOString().substr(11, 8);
+    document.getElementById('progress').textContent = formattedTime;
     if (window.timeline2) {
         console.log('Updating timeline cursor to:', currentTime * 1000);
         window.timeline2.setCustomTime(currentTime * 1000, 'cursor');
@@ -223,7 +238,7 @@ wavesurfer.on('audioprocess', onAudioProcess);
 
 wavesurfer.on('finish', () => {
     const img = document.querySelector('.play_btn');
-    img.src = 'static/assets/play_icon.png';
+    img.src = 'static/assets/play_black_icon_48.png';
 });
 
 // Sync timeline cursor with WaveSurfer playback
@@ -233,9 +248,28 @@ wavesurfer.on('click', (e) => {
     // Set the cursor to the clicked position
     timeline.setCustomTime(currentTime * 1000, 'cursor');
     timeline.moveTo(currentTime * 1000, { animation: false });
-    const minutes = Math.floor(currentTime / 60);
-    const seconds = Math.floor(currentTime % 60).toString().padStart(2, '0');
-    document.getElementById('progress').textContent = `${minutes}:${seconds}`;
+    const formattedTime = new Date(currentTime * 1000).toISOString().substr(11, 8);
+    document.getElementById('progress').textContent = formattedTime;
+});
+
+document.getElementById('resetDataBtn').addEventListener('click', function() {
+    resetAllData();
+})
+
+document.querySelector('.speaker').addEventListener('click', () => {
+    // Ensure audio is ready before toggling volum        
+    const currentVolume = wavesurfer.getVolume();
+    const speakerImg = document.querySelector('.speaker img');
+    
+    if (currentVolume > 0) {
+        // Mute the audio
+        wavesurfer.setVolume(0);
+        speakerImg.src = 'static/assets/speaker_black_icon_48.png';
+    } else {
+        // Unmute the audio
+        wavesurfer.setVolume(1);
+        speakerImg.src = 'static/assets/mute_black_icon_48.png';
+    }
 });
 
 document.getElementById('audio_file').addEventListener('change', function(e) {
@@ -245,8 +279,9 @@ document.getElementById('audio_file').addEventListener('change', function(e) {
     
     if (file) {
         // Reset everything when a new file is uploaded
-        resetAllData();
-        
+        const transcriptBtn = document.getElementById('start-trasncript-btn');   
+        transcriptBtn.disabled = false; 
+
         // Hide the no-file message
         if (noFileMessage) {
             noFileMessage.style.display = 'none';
@@ -265,12 +300,10 @@ document.getElementById('audio_file').addEventListener('change', function(e) {
     // Get the audio duration after loading the file
     wavesurfer.once('ready', () => {
         const duration = wavesurfer.getDuration(); // duration in seconds
-        document.querySelector('.controls-container-upload').style.display = 'flex';
 
         // Set total audio duration in mm:ss format
-        const minutes = Math.floor(duration / 60);
-        const seconds = Math.floor(duration % 60).toString().padStart(2, '0');
-        document.querySelector('.total_audio_duration').textContent = `${minutes}:${seconds}`;
+        const formattedDuration = new Date(duration * 1000).toISOString().substr(11, 8);
+        document.querySelector('.total_audio_duration').textContent = formattedDuration;
 
         if (timeline) {
             timeline.setOptions({
@@ -283,14 +316,80 @@ document.getElementById('audio_file').addEventListener('change', function(e) {
     });
 });
 
+function formatTime(seconds) {
+    const date = new Date(seconds * 1000);
+    return date.toISOString().substr(11, 8);
+}
+
+function formatDuration(seconds) {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+    
+    if (hours > 0) {
+        return `${hours}h ${minutes}m ${secs.toFixed(1)}s`;
+    } else if (minutes > 0) {
+        return `${minutes}m ${secs.toFixed(1)}s`;
+    } else {
+        return `${secs.toFixed(1)}s`;
+    }
+}
+
 // --- UPLOAD FILE FOR REAL-TIME TRANSCRIPTION LOGIC ---
+let addedSegmentKeysTable = new Set(); // Track segments already added to table
+
 function updateSegmentsTable(segments) {
     const segmentsTableBody = document.getElementById('segments-table-body-upload');
+    
     segments.forEach(segment => {
-        const row = document.createElement('tr');
-        row.innerHTML = `<td>${segment.start.toFixed(2)}</td><td>${segment.end.toFixed(2)}</td><td>${segment.text}</td>`;
-        segmentsTableBody.appendChild(row);
+        // Create a unique key for each segment
+        const key = `${segment.start}-${segment.end}-${segment.text}`;
+        
+        // Only add if this segment hasn't been added yet
+        if (!addedSegmentKeysTable.has(key)) {
+            const row = document.createElement('tr');
+            const duration = segment.end - segment.start;
+            row.innerHTML = `
+                    <td class="time-cell">${formatTime(segment.start)}</td>
+                    <td class="time-cell">${formatTime(segment.end)}</td>
+                    <td class="duration-cell">${formatDuration(duration)}</td>
+                    <td style="max-width: 300px; word-wrap: break-word;">${segment.text}</td>
+                    <td>
+                        <div class="segment-actions">
+                            <button class="segment-btn segment-btn-play" data-start="${segment.start}" data-end="${segment.end}" title="Play segment">
+                                ▶
+                            </button>
+                        </div>
+                    </td>
+                `;
+            segmentsTableBody.appendChild(row);
+            addedSegmentKeysTable.add(key);
+            
+            // Add event listener for this specific button
+            const playButton = row.querySelector('.segment-btn-play');
+            playButton.addEventListener('click', (e) => {
+                const start = parseFloat(e.target.getAttribute('data-start'));
+                const end = parseFloat(e.target.getAttribute('data-end'));
+                playSegment(start, end);
+            });
+        }
     });
+}
+
+function playSegment(start, end) {
+    if (wavesurfer) {
+        wavesurfer.setTime(start);
+        wavesurfer.play();
+        
+        // Stop at end time
+        const stopHandler = () => {
+            if (wavesurfer.getCurrentTime() >= end) {
+                wavesurfer.pause();
+                wavesurfer.un('audioprocess', stopHandler);
+            }
+        };
+        wavesurfer.on('audioprocess', stopHandler);
+    }
 }
 
 function handleTranscriptionEvent(data) {
@@ -313,6 +412,7 @@ async function startTranscription() {
     formData.append('audio_file', file); // field name must match FastAPI
 
     addedSegmentKeys = new Set();
+    addedSegmentKeysTable = new Set(); // Reset table tracking
     document.getElementById('segments-table-body-upload').innerHTML = '';
     if (timelineItems) timelineItems.clear();
 
@@ -328,7 +428,7 @@ async function startTranscription() {
     if (!wavesurfer.isPlaying()) {
         wavesurfer.play(); 
         const img = document.querySelector('.play_btn');
-        img.src = 'static/assets/pause_icon.png'; 
+        img.src = 'static/assets/pause_black_icon_48.png'; 
     }
 
     while (true) {

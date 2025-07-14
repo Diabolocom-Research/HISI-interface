@@ -70,10 +70,14 @@ function resetRecordingData() {
     // Stop recording timer
     stopRecordingTimer();
     
-    // Hide mic visualization
+    // Hide mic visualization and show no-recording message
     const micElement = document.getElementById('mic');
+    const noRecordingMessage = document.getElementById('no-recording-message');
     if (micElement) {
         micElement.style.display = 'none';
+    }
+    if (noRecordingMessage) {
+        noRecordingMessage.style.display = 'flex';
     }
     
     // Reset button state
@@ -90,7 +94,7 @@ function resetRecordingData() {
     }
     
     // Hide reset button since there's nothing to reset now
-    const resetBtn = document.getElementById('reset-recording-btn');
+    const resetBtn = document.getElementById('reset-recording-btn-container');
     if (resetBtn) {
         resetBtn.style.display = 'none';
         resetBtn.disabled = false; // Ensure it's not disabled for next use
@@ -108,8 +112,10 @@ let recordingDuration = 0;
 function startRecordingTimer() {
     const timerElement = document.getElementById('recording-timer');
     const recordingStatusContainer = document.querySelector('#recording-status');
+    const startButton = document.getElementById('start-button');
 
     recordingStatusContainer.style.display = 'flex';
+    startButton.style.innerHTML = 'Stop Recording';
     recordingStartTime = Date.now();
     
     recordingTimer = setInterval(() => {
@@ -122,7 +128,7 @@ function startRecordingTimer() {
 
 function stopRecordingTimer() {
     const recordingStatusContainer = document.querySelector('#recording-status');
-
+    const startButton = document.getElementById('start-button');
 
     if (recordingTimer) {
         clearInterval(recordingTimer);
@@ -130,6 +136,7 @@ function stopRecordingTimer() {
     }
     
     recordingStatusContainer.style.display = 'none';
+    startButton.style.display = 'flex'; // Show start button when not recording
     recordingDuration = 0;
 }
 
@@ -262,7 +269,7 @@ const micImg = document.querySelector('.microphone-icon');
 
 // --- FIX 1: Add the missing variable declarations ---
 const transcriptTextElement = document.getElementById('transcript-text');
-const segmentsTableBody = document.getElementById('segments-table-body');
+const segmentsTableBody = document.getElementById('segments-table-body-recording');
 
 // --- Global State ---
 let peerConnection; let webrtc_id; let eventSource; let historicalTranscript = "";
@@ -281,7 +288,7 @@ const defaultConfig = {
 
 // --- CORE LOGIC ---
 function updateButtonState() {
-    const resetBtn = document.getElementById('reset-recording-btn');
+    const resetBtn = document.getElementById('reset-recording-btn-container');
     
     if (!peerConnection || peerConnection.connectionState === "closed" || peerConnection.connectionState === "failed") {
         // Check if we have any recorded data - if so, disable start button
@@ -380,6 +387,12 @@ async function setupWebRTC() {
     startButtonText.textContent = 'Connecting...';
 
     document.getElementById('mic').style.display = 'block';
+    
+    // Hide the no-recording message when recording starts
+    const noRecordingMessage = document.getElementById('no-recording-message');
+    if (noRecordingMessage) {
+        noRecordingMessage.style.display = 'none';
+    }
 
     try {
         const config = window.RTC_CONFIGURATION;
@@ -456,8 +469,41 @@ function handleServerUpdate(data) {
         segmentsTableBody.innerHTML = '';
         segments.forEach(segment => {
             const row = document.createElement('tr');
-            row.innerHTML = `<td>${segment.start.toFixed(2)}</td><td>${segment.end.toFixed(2)}</td><td>${segment.text}</td>`;
+            const duration = segment.end - segment.start;
+            row.innerHTML = `
+                <td class="time-cell">${formatTime(segment.start)}</td>
+                <td class="time-cell">${formatTime(segment.end)}</td>
+                <td class="duration-cell">${formatDuration(duration)}</td>
+                <td style="max-width: 300px; word-wrap: break-word;">${segment.text}</td>
+                <td>
+                    <div class="segment-actions">
+                        <button class="segment-btn segment-btn-play" data-start="${segment.start}" data-end="${segment.end}" title="Play segment">
+                            ▶
+                        </button>
+                    </div>
+                </td>
+            `;
             segmentsTableBody.appendChild(row);
+        });
+
+        // Add event listeners for play buttons
+        document.querySelectorAll('#segments-table-body-upload .segment-btn-play').forEach(button => {
+            button.addEventListener('click', function() {
+                const start = parseFloat(this.getAttribute('data-start'));
+                const end = parseFloat(this.getAttribute('data-end'));
+                
+                if (window.lastRecordedWaveSurfer && window.lastRecordedWaveSurfer.isReady) {
+                    window.lastRecordedWaveSurfer.seekTo(start / window.lastRecordedWaveSurfer.getDuration());
+                    window.lastRecordedWaveSurfer.play();
+                    
+                    // Stop at end time
+                    setTimeout(() => {
+                        if (window.lastRecordedWaveSurfer.isPlaying()) {
+                            window.lastRecordedWaveSurfer.pause();
+                        }
+                    }, (end - start) * 1000);
+                }
+            });
         });
 
         updateTimeline(segments);
@@ -466,6 +512,31 @@ function handleServerUpdate(data) {
         showResetButtonIfNeeded();
     } catch (e) {
         console.error("Failed to parse server data:", data, e);
+    }
+}
+
+
+document.querySelectorAll('.segment-btn-play').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+        const start = parseFloat(e.target.getAttribute('data-start'));
+        const end = parseFloat(e.target.getAttribute('data-end'));
+        playSegment(start, end);
+    });
+});
+
+function playSegment(start, end) {
+    if (window.lastRecordedWaveSurfer) {
+        window.lastRecordedWaveSurfer.setTime(start);
+        window.lastRecordedWaveSurfer.play();
+        
+        // Stop at end time
+        const stopHandler = () => {
+            if (window.lastRecordedWaveSurfer.getCurrentTime() >= end) {
+                window.lastRecordedWaveSurfer.pause();
+                window.lastRecordedWaveSurfer.un('audioprocess', stopHandler);
+            }
+        };
+        window.lastRecordedWaveSurfer.on('audioprocess', stopHandler);
     }
 }
 
@@ -532,12 +603,33 @@ function stop() {
 
 function getRandomColor() {
     const colors = [
-        "rgba(186, 233, 255, 0.5)",
-        "rgba(201, 247, 210, 0.5)", 
-        "rgba(248, 235, 185, 0.5)",
-        "rgba(194, 192, 255, 0.5)"
+        "rgba(49, 151, 198, 0.9)",
+        "rgba(56, 177, 80, 0.9)", 
+        "rgba(184, 156, 45, 0.9)",
+        "rgba(95, 92, 185, 0.9)"
     ];
     return colors[Math.floor(Math.random() * colors.length)];
+}
+
+// --- TIME FORMATTING HELPER FUNCTIONS ---
+function formatTime(seconds) {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
+
+function formatDuration(seconds) {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+    
+    if (hours > 0) {
+        return `${hours}h ${minutes}m ${secs.toFixed(1)}s`;
+    } else if (minutes > 0) {
+        return `${minutes}m ${secs.toFixed(1)}s`;
+    } else {
+        return `${secs.toFixed(1)}s`;
+    }
 }
 
 // --- INITIALIZATION ---
@@ -560,7 +652,7 @@ startButton.addEventListener('click', () => {
 
 // Add reset button event listener
 document.addEventListener('DOMContentLoaded', () => {
-    const resetBtn = document.getElementById('reset-recording-btn');
+    const resetBtn = document.getElementById('reset-recording-btn-container');
     if (resetBtn) {
         resetBtn.addEventListener('click', () => {
             resetRecordingData();
@@ -570,7 +662,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Show reset button when there's data to reset
 function showResetButtonIfNeeded() {
-    const resetBtn = document.getElementById('reset-recording-btn');
+    const resetBtn = document.getElementById('reset-recording-btn-container');
     if (!resetBtn) return;
     
     const hasTranscript = transcriptTextElement && transcriptTextElement.textContent.trim() !== 'Speak to see transcript...';
@@ -578,7 +670,7 @@ function showResetButtonIfNeeded() {
     const hasRecording = window.lastRecordedWaveSurfer;
     
     if (hasTranscript || hasSegments || hasRecording) {
-        resetBtn.style.display = 'block';
+        resetBtn.style.display = 'flex';
     } else {
         resetBtn.style.display = 'none';
     }

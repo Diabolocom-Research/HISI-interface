@@ -4,6 +4,8 @@ import WaveSurfer from 'https://unpkg.com/wavesurfer.js@7/dist/wavesurfer.esm.js
 import RecordPlugin from 'https://unpkg.com/wavesurfer.js@7/dist/plugins/record.esm.js'
 import ZoomPlugin from 'https://unpkg.com/wavesurfer.js@7/dist/plugins/zoom.esm.js'
 import RegionsPlugin from 'https://unpkg.com/wavesurfer.js@7/dist/plugins/regions.esm.js'
+import TimelinePlugin from 'https://unpkg.com/wavesurfer.js@7/dist/plugins/timeline.esm.js'
+import Minimap from 'https://unpkg.com/wavesurfer.js@7/dist/plugins/minimap.esm.js'
 
 const recordedRegions = RegionsPlugin.create();
 
@@ -17,10 +19,10 @@ wavesurfer = WaveSurfer.create({
   container: '#mic',
   waveColor: '#F8A05D',
   progressColor: '#E96C64',
-  barGap: 3,
-  barHeight: 4,
   minPxPerSec: 1,
-  barWidth: 3,
+  barGap: 0,
+  barHeight: 3,
+  barWidth: 2,
   barRadius: 10,
 })
 
@@ -28,7 +30,7 @@ let scrollingWaveform = false
 let continuousWaveform = true
 
 let lastRecordedWaveSurfer = null;
-const playButton = document.getElementById('play-mic-recording');
+const playButton = document.getElementById('play-mic-recording-container');
 
 const recButton = document.querySelector('#start-button')
 const rectText = document.querySelector('.start-button-txt');
@@ -43,9 +45,8 @@ const colors = [
 
 // Define the audio process handler as a named function
 function onAudioProcess(currentTime) {
-    const minutes = Math.floor(currentTime / 60);
-    const seconds = Math.floor(currentTime % 60).toString().padStart(2, '0');
-    document.querySelector('.audio_duration').textContent = `${minutes}:${seconds}`;
+    const formattedTime = new Date(currentTime * 1000).toISOString().substr(11, 8);
+    document.querySelector('.audio_duration').textContent = formattedTime;
     if (window.timeline) {
         window.timeline.setCustomTime(currentTime * 1000, 'cursor');
         window.timeline.moveTo(currentTime * 1000, { animation: false });
@@ -74,8 +75,8 @@ let loop = false
     e.stopPropagation() // prevent triggering a click on the waveform
     activeRegion = region
     region.play(true)
-    const img = document.querySelector('.play_btn');
-    img.src = 'static/assets/pause_icon.png';
+    const img = document.getElementById('play-mic-recording');
+    img.src = 'static/assets/pause_black_icon_48.png';
   })
   // Reset the active region when the user clicks anywhere in the waveform
   wavesurfer.on('interaction', () => {
@@ -113,10 +114,16 @@ const createWaveSurfer = () => {
       progressColor: '#F8A05D',
       url: recordedUrl,
       minPxPerSec: 1,
-      plugins: [recordedRegions],
-      barGap: 3,
-      barHeight: 4,
-      barWidth: 3,
+      plugins: [recordedRegions, TimelinePlugin.create(),
+          Minimap.create({
+              height: 30,
+              waveColor: '#E96C64',
+              progressColor: '#F8A05D',
+          })
+      ],
+      barGap: 0,
+      barHeight: 3,
+      barWidth: 2,
       barRadius: 10,
     })
 
@@ -179,7 +186,7 @@ const createWaveSurfer = () => {
     // when playback is being played, update the timeline
     lastRecordedWaveSurfer.on('audioprocess', onAudioProcess);
 
-    const img = document.querySelector('.play_btn');
+    const img = document.getElementById('play-mic-recording');
 
     playButton.onclick = () => {
       if (lastRecordedWaveSurfer.isPlaying()) {
@@ -190,7 +197,7 @@ const createWaveSurfer = () => {
     };
 
     lastRecordedWaveSurfer.on('pause', () => {
-        img.src = 'static/assets/play_icon.png';
+        img.src = 'static/assets/play_black_icon_48.png';
         const currentTime = lastRecordedWaveSurfer.getCurrentTime();
                 
         // Set the cursor to the final paused position
@@ -205,7 +212,7 @@ const createWaveSurfer = () => {
     });
 
     lastRecordedWaveSurfer.on('play', () => {
-        img.src = 'static/assets/pause_icon.png';
+        img.src = 'static/assets/pause_black_icon_48.png';
         // Re-attach the audioprocess listener when playback starts again
         // This is important if you pause and then play again from the same instance
         lastRecordedWaveSurfer.on('audioprocess', onAudioProcess); 
