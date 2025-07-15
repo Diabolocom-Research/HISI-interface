@@ -3,6 +3,12 @@
     --background-cream: #faf8f5;
     --text-dark: #2d2d2d;
     --border-light: #E5E7EB;
+
+    /* CSS Variables for consistent region styling */
+    --region-height: 85%;
+    --region-opacity: 0.7;
+    --region-border-radius: 6px;
+    --region-top-offset: 7.5%;
 }
 
 html, body {
@@ -124,7 +130,10 @@ body {
     background: #F9FAFB;
 }
 
-#waveform ::part(region) {
+/* Target all region parts - comprehensive approach */
+/* Standard region parts */
+#waveform ::part(region),
+#recordings ::part(region) {
     height: 85% !important;
     opacity: 0.7 !important;
     border-radius: 6px !important;
@@ -132,7 +141,34 @@ body {
     cursor: pointer !important;
 }
 
-#waveform ::part(region):hover {
+/* Regions with compound part names like "region segment-1" */
+#waveform [part*="region"],
+#recordings [part*="region"] {
+    height: 85% !important;
+    opacity: 0.7 !important;
+    border-radius: 6px !important;
+    transition: opacity 0.3s ease;
+    cursor: pointer !important;
+}
+
+/* Direct styling for WaveSurfer region elements */
+#waveform div[style*="position: absolute"][style*="background-color"],
+#recordings div[style*="position: absolute"][style*="background-color"] {
+    height: 85% !important;
+    opacity: 0.7 !important;
+    border-radius: 6px !important;
+    transition: opacity 0.3s ease;
+    cursor: pointer !important;
+    top: 7.5% !important; /* Center the region vertically with 85% height */
+}
+
+/* Hover effect for all region parts */
+#waveform ::part(region):hover,
+#recordings ::part(region):hover,
+#waveform [part*="region"]:hover,
+#recordings [part*="region"]:hover,
+#waveform div[style*="position: absolute"][style*="background-color"]:hover,
+#recordings div[style*="position: absolute"][style*="background-color"]:hover {
     opacity: 1 !important;
 }
 
@@ -141,7 +177,8 @@ body {
     overflow-y: auto;
 }
 
-#waveform ::part(region-content) {
+#waveform ::part(region-content),
+#recordings ::part(region-content) {
     color: black;
     margin-top: 0 !important;
     margin: 0 !important;
@@ -638,7 +675,7 @@ thead th {
 }
 
 .vis-timeline {
-    border-radius: 8px !important;
+    border-radius: 4px !important;
     border: 1px solid var(--border-light) !important;
 }
 

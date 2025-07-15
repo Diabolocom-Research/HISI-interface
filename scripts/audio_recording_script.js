@@ -590,11 +590,11 @@ function addRegionsToRecordedWaveform() {
                 color: getRandomColor(),
                 drag: false,
                 resize: false,
-                id: `segment-${index}` // Add unique ID
+                // id: `segment-${index}` // Add unique ID
             });
-            console.log(`Added region ${index}:`, region);
+            // console.log(`Added region ${index}:`, region);
         } catch (error) {
-            console.error(`Failed to add region ${index}:`, error);
+            console.error("Failed to add region for segment", error);
         }
     });
     
