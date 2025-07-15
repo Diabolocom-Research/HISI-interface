@@ -9,7 +9,7 @@
     <script src="https://unpkg.com/vis-timeline@latest/standalone/umd/vis-timeline-graph2d.min.js"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Whisper Transcription: Configure Model</title>
-    <link rel="stylesheet" href="/static/scripts/style.css?v=2">
+    <link rel="stylesheet" href="/static/scripts/style.css?v=3">
 </head>
 <body>
 
@@ -113,7 +113,7 @@
 
                             <div class="right_controls">
                                 <div class="img_container">
-                                    <p class="audio_duration">00:00:00</p>
+                                    <p id="progress" class="audio_duration">00:00:00</p>
                                 </div>
                                 <div class="total_duration_container">
                                     <p class="total_audio_duration_record">00:00:00</p>
@@ -242,7 +242,7 @@
                                         <p class="zoom_level">0.5x</p>
                                     </div>
                                     <div class="img_container">
-                                        <p id="progress" class="current_duration">00:00:00</p>
+                                        <p id="progress_upload" class="current_duration">00:00:00</p>
                                     </div>
                                     <div class="total_duration_container">
                                         <p class="total_audio_duration">00:00:00</p>
@@ -292,9 +292,9 @@
     </div>
 
     <!-- Script for managing audio recording -->
-    <script src="/static/scripts/audio_recording_script.js?v=2"></script>
+    <script src="/static/scripts/audio_recording_script.js?v=4"></script>
     <!-- Script for managing audio file upload -->
-    <script src="/static/scripts/audio_file_script.js?v=2" type="module"></script>
+    <script src="/static/scripts/audio_file_script.js?v=1" type="module"></script>
     <!-- Script for managing evaluation metrics -->
     <script src="/static/scripts/evaluation_script.js?v=2"></script>
     <!-- Script to manage wavesufer library -->

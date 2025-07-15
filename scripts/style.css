@@ -125,15 +125,15 @@ body {
 }
 
 #waveform ::part(region) {
-    height: 85%;
-    opacity: 0.7;
-    border-radius: 6px;
+    height: 85% !important;
+    opacity: 0.7 !important;
+    border-radius: 6px !important;
     transition: opacity 0.3s ease;
-    cursor: pointer;
+    cursor: pointer !important;
 }
 
 #waveform ::part(region):hover {
-    opacity: 1;
+    opacity: 1 !important;
 }
 
 .table-wrapper {
@@ -143,9 +143,9 @@ body {
 
 #waveform ::part(region-content) {
     color: black;
-    margin-top: 0;
-    margin: 0;
-    align-self: start;
+    margin-top: 0 !important;
+    margin: 0 !important;
+    align-self: start !important;
 }
 
 .segments-table-container {
@@ -213,7 +213,7 @@ body {
 .waveform-container-new-recording {
     border-radius: 4px;
     background-color: white;
-    height: 262px; 
+    height: 230px; 
     display: flex;
     flex-direction: column;
     justify-content: center;
@@ -627,12 +627,6 @@ thead th {
     border-radius: 4px;
     font-weight: 600;
     color: white !important;
-}
-
-#waveform ::part(region) {
-    border: none;
-    display: flex;
-    align-items: center;
 }
 
 #waveform ::part(region-content) {

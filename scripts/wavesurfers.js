@@ -95,6 +95,8 @@ const createWaveSurfer = () => {
     }),
   )
 
+  window.wavesurfer = wavesurfer;
+
   record.on('record-end', (blob) => {
     const container = document.querySelector('#recordings')
     const recordedUrl = URL.createObjectURL(blob)
@@ -222,7 +224,7 @@ const createWaveSurfer = () => {
   rectText.textContent = 'Start Recording'
 
   record.on('record-progress', (time) => {
-    updateProgress(time)
+    // updateProgress(time)
   })
 }
 

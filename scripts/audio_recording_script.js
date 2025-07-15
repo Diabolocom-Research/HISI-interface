@@ -15,16 +15,22 @@ function resetRecordingData() {
         segmentsTableBody.innerHTML = '';
     }
     
-    // Clear timeline items
+    // Clear timeline items and reinitialize
     if (timelineItems) {
         timelineItems.clear();
+        // Recreate the DataSet to ensure it's properly reset
+        timelineItems = new vis.DataSet([]);
+        console.log('Timeline DataSet recreated');
     }
     
-    // Reset timeline cursor
+    // Reset timeline cursor and state
     if (timeline) {
         timeline.setCustomTime(0, 'cursor');
         timeline.moveTo(0, { animation: false });
-        timeline.setOptions({ max: 10000 });
+        timeline.setOptions({ max: 10000, start: 0, end: 10000 });
+        // Ensure timeline is using the fresh DataSet
+        timeline.setItems(timelineItems);
+        console.log('Timeline reset and reinitialized');
     }
     
     // Clear regions from playback waveform
@@ -36,6 +42,10 @@ function resetRecordingData() {
     if (window.lastRecordedWaveSurfer) {
         window.lastRecordedWaveSurfer.destroy();
         window.lastRecordedWaveSurfer = null;
+    }
+    
+    if (window.wavesurfer) {
+        window.wavesurfer.empty();
     }
     
     // Clear recordings container
@@ -59,7 +69,7 @@ function resetRecordingData() {
     // Reset play button icon
     const playBtn = document.querySelector('.play_btn');
     if (playBtn) {
-        playBtn.src = 'static/assets/play_icon.png';
+        playBtn.src = 'static/assets/play_black_icon_48.png';
     }
     
     // Reset global state
@@ -230,27 +240,42 @@ function initTimeline() {
 document.addEventListener('DOMContentLoaded', initTimeline);
 
 function updateTimeline(segments) {
-    if (!timelineItems) return;
+    if (!timelineItems || !timeline) {
+        console.log("Timeline not initialized properly");
+        return;
+    }
+    
+    // Clear existing items
     timelineItems.clear();
-    timeline.zoomIn(1);
-    timeline.moveTo(1); 
 
     console.log("Updating timeline with segments:", segments);
 
-    segments.forEach((segment, idx) => {
-        timelineItems.add({
-            id: idx,
-            content: segment.text,
-            start: segment.start * 1000, // Convert to milliseconds
-            end: segment.end * 1000, // Convert to milliseconds
+    if (segments && segments.length > 0) {
+        // Add all segments to timeline
+        segments.forEach((segment, idx) => {
+            timelineItems.add({
+                id: idx,
+                content: segment.text,
+                start: segment.start * 1000, // Convert to milliseconds
+                end: segment.end * 1000, // Convert to milliseconds
+            });
         });
 
-        timeline.setOptions({
-            max: segment.start * 1000 + 2000,
-        });
-    
-        // timeline.fit();
-    });
+        // Update timeline range based on last segment
+        const lastSegment = segments[segments.length - 1];
+        if (lastSegment) {
+            timeline.setOptions({
+                max: lastSegment.end * 1000 + 1000,
+            });
+        }
+        
+        // Move timeline to show latest content
+        timeline.fit();
+    } else {
+        // Reset timeline when no segments
+        timeline.setOptions({ max: 10000 });
+        timeline.moveTo(0, { animation: false });
+    }
     
     window.segments = segments;
 }
@@ -484,29 +509,19 @@ function handleServerUpdate(data) {
                 </td>
             `;
             segmentsTableBody.appendChild(row);
-        });
 
-        // Add event listeners for play buttons
-        document.querySelectorAll('#segments-table-body-upload .segment-btn-play').forEach(button => {
-            button.addEventListener('click', function() {
-                const start = parseFloat(this.getAttribute('data-start'));
-                const end = parseFloat(this.getAttribute('data-end'));
-                
-                if (window.lastRecordedWaveSurfer && window.lastRecordedWaveSurfer.isReady) {
-                    window.lastRecordedWaveSurfer.seekTo(start / window.lastRecordedWaveSurfer.getDuration());
-                    window.lastRecordedWaveSurfer.play();
-                    
-                    // Stop at end time
-                    setTimeout(() => {
-                        if (window.lastRecordedWaveSurfer.isPlaying()) {
-                            window.lastRecordedWaveSurfer.pause();
-                        }
-                    }, (end - start) * 1000);
-                }
+            const playButton = row.querySelector('.segment-btn-play');
+            playButton.addEventListener('click', (e) => {
+                const start = parseFloat(e.target.getAttribute('data-start'));
+                const end = parseFloat(e.target.getAttribute('data-end'));
+                playSegment(start, end);
             });
         });
 
         updateTimeline(segments);
+        
+        console.log(`Timeline update called with ${segments.length} segments`);
+        console.log('Timeline state:', timelineItems ? `${timelineItems.length} items` : 'null');
         
         // Show reset button if there's data to reset
         showResetButtonIfNeeded();
@@ -647,6 +662,22 @@ startButton.addEventListener('click', () => {
     }
     else { 
         stop(); 
+    }
+});
+
+document.querySelector('.speaker-recording').addEventListener('click', () => {
+    // Ensure audio is ready before toggling volum        
+    const currentVolume = window.lastRecordedWaveSurfer.getVolume();
+    const speakerImg = document.querySelector('.speaker-recording img');
+
+    if (currentVolume > 0) {
+        // Mute the audio
+        window.lastRecordedWaveSurfer.setVolume(0);
+        speakerImg.src = 'static/assets/speaker_black_icon_48.png';
+    } else {
+        // Unmute the audio
+        window.lastRecordedWaveSurfer.setVolume(1);
+        speakerImg.src = 'static/assets/mute_black_icon_48.png';
     }
 });
 

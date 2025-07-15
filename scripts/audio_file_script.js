@@ -30,7 +30,7 @@ function resetAllData() {
     colorIndex = 0;
     
     // Reset progress display
-    const progressElement = document.getElementById('progress');
+    const progressElement = document.getElementById('progress_upload');
     if (progressElement) {
         progressElement.textContent = '00:00:00';
     }
@@ -226,7 +226,7 @@ wavesurfer.on('pause', () => {
 
 function onAudioProcess(currentTime) {
     const formattedTime = new Date(currentTime * 1000).toISOString().substr(11, 8);
-    document.getElementById('progress').textContent = formattedTime;
+    document.getElementById('progress_upload').textContent = formattedTime;
     if (window.timeline2) {
         console.log('Updating timeline cursor to:', currentTime * 1000);
         window.timeline2.setCustomTime(currentTime * 1000, 'cursor');
@@ -249,7 +249,7 @@ wavesurfer.on('click', (e) => {
     timeline.setCustomTime(currentTime * 1000, 'cursor');
     timeline.moveTo(currentTime * 1000, { animation: false });
     const formattedTime = new Date(currentTime * 1000).toISOString().substr(11, 8);
-    document.getElementById('progress').textContent = formattedTime;
+    document.getElementById('progress_upload').textContent = formattedTime;
 });
 
 document.getElementById('resetDataBtn').addEventListener('click', function() {
@@ -424,12 +424,8 @@ async function startTranscription() {
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     
-    // Only start playback if not already playing
-    if (!wavesurfer.isPlaying()) {
-        wavesurfer.play(); 
-        const img = document.querySelector('.play_btn');
-        img.src = 'static/assets/pause_black_icon_48.png'; 
-    }
+    // Don't auto-play audio to avoid cursor sync issues
+    // User can manually start playback when they want
 
     while (true) {
         const { value, done } = await reader.read();
@@ -561,7 +557,7 @@ function updateTimeline(segments) {
             timelineItems.add({
                 id: key,
                 content: segment.text,
-                start: segment.start * 1000, // ms
+                start: segment.start * 1000,
                 end: segment.end * 1000,
             });
             addedSegmentKeys.add(key);
@@ -569,15 +565,11 @@ function updateTimeline(segments) {
         regions.addRegion({
             start: segment.start,
             end: segment.end,
-            color: colors[colorIndex % colors.length], // Use sequential colors
+            color: colors[colorIndex % colors.length], 
             content: segment.text,
             drag: false,
             resize: false,
         });
-        colorIndex++; // Move to next color
+        colorIndex++; 
     });
-
-    // if (segments.length > 0) {
-    //     timeline.fit();
-    // }
 }
