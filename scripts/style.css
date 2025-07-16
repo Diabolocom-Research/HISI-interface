@@ -230,7 +230,19 @@ body {
 }
 
 .segment-btn-play {
+    background: transparent;
     cursor: pointer;
+    border: 1px solid #d8d8d8;
+    border-radius: 4px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 6px 8px;
+}
+
+.segment-btn-play img {
+    height: 13px;
+    width: 13px;
 }
 
 .waveform-container-new {

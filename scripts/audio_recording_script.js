@@ -38,6 +38,12 @@ function resetRecordingData() {
         window.regions.clearRegions();
     }
     
+    // Clean up segment playback handlers
+    if (window.currentSegmentHandler && window.lastRecordedWaveSurfer) {
+        window.lastRecordedWaveSurfer.un('audioprocess', window.currentSegmentHandler);
+        window.currentSegmentHandler = null;
+    }
+    
     // Reset recorded waveform
     if (window.lastRecordedWaveSurfer) {
         window.lastRecordedWaveSurfer.destroy();
@@ -245,7 +251,7 @@ function updateTimeline(segments) {
         return;
     }
     
-    // Clear existing items
+    // Clear existing items first
     timelineItems.clear();
 
     console.log("Updating timeline with segments:", segments);
@@ -503,7 +509,7 @@ function handleServerUpdate(data) {
                 <td>
                     <div class="segment-actions">
                         <button class="segment-btn segment-btn-play" data-start="${segment.start}" data-end="${segment.end}" title="Play segment">
-                            ▶
+                            <img src="static/assets/play_black_icon_48.png" alt="Play">
                         </button>
                     </div>
                 </td>
@@ -511,9 +517,12 @@ function handleServerUpdate(data) {
             segmentsTableBody.appendChild(row);
 
             const playButton = row.querySelector('.segment-btn-play');
+            // Make the click apply to the button and its children (including img)
             playButton.addEventListener('click', (e) => {
-                const start = parseFloat(e.target.getAttribute('data-start'));
-                const end = parseFloat(e.target.getAttribute('data-end'));
+                // Find the button element in case the img was clicked
+                const btn = e.currentTarget;
+                const start = parseFloat(btn.getAttribute('data-start'));
+                const end = parseFloat(btn.getAttribute('data-end'));
                 playSegment(start, end);
             });
         });
@@ -530,28 +539,60 @@ function handleServerUpdate(data) {
     }
 }
 
-
-document.querySelectorAll('.segment-btn-play').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-        const start = parseFloat(e.target.getAttribute('data-start'));
-        const end = parseFloat(e.target.getAttribute('data-end'));
-        playSegment(start, end);
-    });
-});
-
 function playSegment(start, end) {
-    if (window.lastRecordedWaveSurfer) {
+    // Validate start and end values
+    if (!window.lastRecordedWaveSurfer) {
+        console.error('No recorded waveform available for playback');
+        return;
+    }
+    
+    // Check if start and end are valid finite numbers
+    if (!isFinite(start) || !isFinite(end) || start < 0 || end <= start) {
+        console.error('Invalid segment times:', { start, end });
+        return;
+    }
+    
+    // Get the duration of the audio to validate against
+    const duration = window.lastRecordedWaveSurfer.getDuration();
+    if (start >= duration) {
+        console.error('Start time exceeds audio duration:', { start, duration });
+        return;
+    }
+    
+    try {
+        console.log(`Playing segment from ${start} to ${end}`);
+        
+        // Clean up any existing segment playback handlers
+        if (window.currentSegmentHandler) {
+            window.lastRecordedWaveSurfer.un('audioprocess', window.currentSegmentHandler);
+            window.currentSegmentHandler = null;
+        }
+        
+        // Stop current playback if any
+        if (window.lastRecordedWaveSurfer.isPlaying()) {
+            window.lastRecordedWaveSurfer.pause();
+        }
+        
+        // Set position and start playing
         window.lastRecordedWaveSurfer.setTime(start);
         window.lastRecordedWaveSurfer.play();
         
-        // Stop at end time
+        // Create new stop handler for this segment
         const stopHandler = () => {
-            if (window.lastRecordedWaveSurfer.getCurrentTime() >= end) {
+            const currentTime = window.lastRecordedWaveSurfer.getCurrentTime();
+            if (currentTime >= end || currentTime >= duration) {
                 window.lastRecordedWaveSurfer.pause();
                 window.lastRecordedWaveSurfer.un('audioprocess', stopHandler);
+                window.currentSegmentHandler = null;
             }
         };
+        
+        // Store reference to current handler for cleanup
+        window.currentSegmentHandler = stopHandler;
         window.lastRecordedWaveSurfer.on('audioprocess', stopHandler);
+        
+    } catch (error) {
+        console.error('Error playing segment:', error, { start, end });
     }
 }
 
