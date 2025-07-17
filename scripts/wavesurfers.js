@@ -101,6 +101,8 @@ const createWaveSurfer = () => {
     const container = document.querySelector('#recordings')
     const recordedUrl = URL.createObjectURL(blob)
     const total_audio_duration_record = document.querySelector('.total_audio_duration_record')
+    document.getElementById('no-waveform-message-playback').style.display = 'none';
+    document.getElementById('recordings').style.display = 'block';
 
     // Create wavesurfer from the recorded audio
     if (lastRecordedWaveSurfer) {
@@ -166,7 +168,7 @@ const createWaveSurfer = () => {
             max: duration * 1000 + 1000,
         });
 
-        window.timeline.moveTo(1, { animation: false });
+        window.timeline.moveTo(1)
         
         // Show reset button since we now have a recording
         if (window.showResetButtonIfNeeded) {

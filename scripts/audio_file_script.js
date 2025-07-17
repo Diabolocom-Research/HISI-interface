@@ -1,70 +1,3 @@
-// --- RESET FUNCTION FOR NEW FILE UPLOADS ---
-function resetAllData() {
-    // Reset transcription output
-    const outputElement = document.getElementById('output');
-    if (outputElement) {
-        outputElement.textContent = '';
-    }
-    
-    // Reset segments table
-    const segmentsTableBody = document.getElementById('segments-table-body-upload');
-    if (segmentsTableBody) {
-        segmentsTableBody.innerHTML = '';
-    }
-    
-    // Clear timeline items
-    if (timelineItems) {
-        timelineItems.clear();
-    }
-    
-    // Clear regions from wavesurfer
-    if (regions) {
-        regions.clearRegions();
-    }
-    
-    // Reset added segment keys
-    addedSegmentKeys = new Set();
-    addedSegmentKeysTable = new Set(); // Also reset table tracking
-    
-    // Reset color index
-    colorIndex = 0;
-    
-    // Reset progress display
-    const progressElement = document.getElementById('progress_upload');
-    if (progressElement) {
-        progressElement.textContent = '00:00:00';
-    }
-    
-    // Reset transcription button text
-    const transcriptBtn = document.getElementById('start-trasncript-btn');
-    if (transcriptBtn) {
-        transcriptBtn.textContent = 'Start Transcription';
-        transcriptBtn.disabled = false; // Re-enable the button
-    }
-    
-    // Reset play button icon
-    const playBtnImg = document.getElementById('play-upload-recording');
-    if (playBtnImg) {
-        playBtnImg.src = 'static/assets/play_black_icon_48.png';
-    }
-    
-    // Reset timeline cursor if timeline exists
-    if (timeline) {
-        timeline.setCustomTime(0, 'cursor');
-        timeline.moveTo(0, { animation: false });
-    }
-    
-    // Stop any current playback
-    if (wavesurfer && wavesurfer.isPlaying()) {
-        wavesurfer.stop();
-    }
-    
-    console.log('All data reset for new file upload');
-}
-
-// -- WaveSurfer.js to handle audio file upload and playback --
-let timeline, timelineItems;
-
 import WaveSurfer from 'https://unpkg.com/wavesurfer.js@7/dist/wavesurfer.esm.js'
 import ZoomPlugin from 'https://unpkg.com/wavesurfer.js@7/dist/plugins/zoom.esm.js'
 import RegionsPlugin from 'https://unpkg.com/wavesurfer.js@7/dist/plugins/regions.esm.js'
@@ -72,75 +5,214 @@ import TimelinePlugin from 'https://unpkg.com/wavesurfer.js@7/dist/plugins/timel
 import Minimap from 'https://unpkg.com/wavesurfer.js@7/dist/plugins/minimap.esm.js'
 
 const regions = RegionsPlugin.create()
-
-const wavesurfer = WaveSurfer.create({
-    container: '#waveform',
-    waveColor: '#E96C64',
-    progressColor: '#F8A05D',
-    minPxPerSec: 1,
-    plugins: [regions, TimelinePlugin.create(),
-        Minimap.create({
-            height: 30,
-            waveColor: '#E96C64',
-            progressColor: '#F8A05D',
-        })
-    ],
-    barGap: 0,
-    barHeight: 3,
-    barWidth: 2,
-    barRadius: 10,
-});
-
-const colors = [
-    "rgba(186, 233, 255, 0.5)", // Light blue, semi-transparent
-    "rgba(201, 247, 210, 0.5)", // Light green, semi-transparent
-    "rgba(248, 235, 185, 0.5)", // Light yellow, semi-transparent
-    "rgba(194, 192, 255, 0.5)", // Light purple, semi-transparent
-]
-
-// Loop a region on click
-let loop = false
-
-{
-  let activeRegion = null
-  regions.on('region-in', (region) => {
-    console.log('region-in', region)
-    activeRegion = region
-  })
-  regions.on('region-out', (region) => {
-    console.log('region-out', region)
-    if (activeRegion === region) {
-      if (loop) {
-        region.play()
-      } else {
-        activeRegion = null
-      }
-    }
-  })
-  regions.on('region-clicked', (region, e) => {
-    e.stopPropagation() // prevent triggering a click on the waveform
-    activeRegion = region
-    region.play(true)
-    const img = document.querySelector('.play_btn');
-    img.src = 'static/assets/pause_black_icon_48.png';
-  })
-  // Reset the active region when the user clicks anywhere in the waveform
-  wavesurfer.on('interaction', () => {
-    activeRegion = null
-  })
-}
-
-wavesurfer.registerPlugin(
-    ZoomPlugin.create({
-        // the amount of zoom per wheel step, e.g. 0.2 means a 20% magnification per scroll
-        scale: 0.2,
-        maxZoom: 1000, 
-    })
-)
-
+let timeline, timelineItems;
 let lastWaveformZoom = 100; 
 let mousePosition = null; 
-let zoomTimeout = null; // Add debouncing for zoom
+let zoomTimeout = null;
+let wavesurfer;
+let activeRegion = null
+let loop = false
+const BASE_ZOOM = 100;
+let segments = [];
+let isTranscribing = false;
+
+const colors = [
+    "rgba(186, 233, 255, 0.5)", 
+    "rgba(201, 247, 210, 0.5)", 
+    "rgba(248, 235, 185, 0.5)", 
+    "rgba(194, 192, 255, 0.5)", 
+]
+
+// Reset all data and UI elements
+function resetAllData() {
+    const outputElement = document.getElementById('output');
+    if (outputElement) {
+        outputElement.textContent = '';
+    }
+    
+    const segmentsTableBody = document.getElementById('segments-table-body-upload');
+    if (segmentsTableBody) {
+        segmentsTableBody.innerHTML = '';
+    }
+    
+    if (timelineItems) {
+        timelineItems.clear();
+    }
+    
+    if (segments) {
+        segments = [];
+    }
+    
+    if (regions) {
+        regions.clearRegions();
+    }
+    
+    // Clear RTF display
+    const rtfDisplay = document.getElementById('rtf-display');
+    if (rtfDisplay) {
+        rtfDisplay.remove();
+    }
+    
+    addedSegmentKeys = new Set();
+    addedSegmentKeysTable = new Set(); 
+    
+    colorIndex = 0;
+    
+    const progressElement = document.getElementById('progress_upload');
+    if (progressElement) {
+        progressElement.textContent = '00:00:00';
+    }
+    
+    const transcriptBtn = document.getElementById('start-trasncript-btn');
+    if (transcriptBtn) {
+        transcriptBtn.textContent = 'Start Transcription';
+        transcriptBtn.disabled = false; 
+    }
+    
+    const playBtnImg = document.getElementById('play-upload-recording');
+    if (playBtnImg) {
+        playBtnImg.src = 'static/assets/play_black_icon_48.png';
+    }
+    
+    if (timeline) {
+        timeline.setCustomTime(0, 'cursor');
+        timeline.moveTo(0, { animation: false });
+    }
+    
+    if (wavesurfer) {
+        wavesurfer.stop();
+        wavesurfer.empty();
+        wavesurfer.destroy();
+        document.getElementById('waveform').style.display = 'none'; 
+        document.getElementById('no-file-message').style.display = 'flex';
+    }
+    
+    // Clear the file input to allow re-uploading the same file
+    const fileInput = document.getElementById('audio_file');
+    if (fileInput) {
+        fileInput.value = '';
+    }
+}
+
+const createWaveSurfer = () => {
+    wavesurfer = WaveSurfer.create({
+        container: '#waveform',
+        waveColor: '#E96C64',
+        progressColor: '#F8A05D',
+        minPxPerSec: 1,
+        plugins: [regions, TimelinePlugin.create(),
+            Minimap.create({
+                height: 30,
+                waveColor: '#E96C64',
+                progressColor: '#F8A05D',
+            })
+        ],
+        barGap: 0,
+        barHeight: 3,
+        barWidth: 2,
+        barRadius: 10,
+    });
+
+    wavesurfer.registerPlugin(
+        ZoomPlugin.create({
+            scale: 0.2, // the amount of zoom per wheel step, e.g. 0.2 means a 20% magnification per scroll
+            maxZoom: 1000, 
+        })
+    )
+
+    regions.on('region-in', (region) => {
+        activeRegion = region
+    })
+
+    regions.on('region-out', (region) => {
+        if (activeRegion === region) {
+            if (loop) {
+                region.play()
+            } else {
+                activeRegion = null
+            }
+        }
+    })
+
+    regions.on('region-clicked', (region, e) => {
+        e.stopPropagation() // prevent triggering a click on the waveform
+        activeRegion = region
+        region.play(true)
+        const img = document.querySelector('.play_btn');
+        img.src = 'static/assets/pause_black_icon_48.png';
+    })
+
+    wavesurfer.on('interaction', () => {
+        activeRegion = null
+    })
+
+    // Waveform and Timeline zoom synchronization (debounced)
+    wavesurfer.on('zoom', (minPxPerSec) => {
+        const zoomFactor = minPxPerSec / BASE_ZOOM;
+        const zoomLabel = `${zoomFactor.toFixed(1)}x`; 
+
+        document.querySelector('.zoom_level').textContent = zoomLabel;
+        if (timeline && Math.abs(minPxPerSec - lastWaveformZoom) > 5) { 
+
+            if (zoomTimeout) {
+                clearTimeout(zoomTimeout);
+            }
+            
+            // Debounce zoom synchronization
+            zoomTimeout = setTimeout(() => {            
+                const zoomRatio = minPxPerSec / lastWaveformZoom;
+                
+                // Get current timeline window
+                const currentWindow = timeline.getWindow();
+                const currentCenter = mousePosition?.time ? mousePosition.time * 1000 : 
+                                    (currentWindow.start.getTime() + currentWindow.end.getTime()) / 2;
+                const currentDuration = currentWindow.end.getTime() - currentWindow.start.getTime();
+                
+                // Calculate new window duration based on zoom ratio
+                const newDuration = currentDuration / zoomRatio;
+                
+                // Calculate new window centered on mouse position or current center
+                const newStart = currentCenter - (newDuration / 2);
+                const newEnd = currentCenter + (newDuration / 2);
+                
+                // Apply the new window with smooth animation disabled for responsiveness
+                timeline.setWindow(new Date(newStart), new Date(newEnd), { animation: false });
+                
+                // Update the last zoom level
+                lastWaveformZoom = minPxPerSec;
+            }, 100); // 100ms debounce
+        }
+    });
+
+    wavesurfer.on('play', () => {
+        const img = document.getElementById('play-upload-recording');
+        img.src = 'static/assets/pause_black_icon_48.png';
+        // onAudioProcess(wavesurfer.getCurrentTime());
+    });
+
+    wavesurfer.on('pause', () => {
+        const img = document.getElementById('play-upload-recording');
+        img.src = 'static/assets/play_black_icon_48.png';
+    });
+
+    wavesurfer.on('audioprocess', onAudioProcess);
+
+    wavesurfer.on('finish', () => {
+        const img = document.querySelector('.play_btn');
+        img.src = 'static/assets/play_black_icon_48.png';
+    });
+
+    // Sync timeline cursor with WaveSurfer playback
+    wavesurfer.on('click', (e) => {
+        const currentTime = wavesurfer.getCurrentTime();
+                
+        // Set the cursor to the clicked position
+        timeline.setCustomTime(currentTime * 1000, 'cursor');
+        timeline.moveTo(currentTime * 1000, { animation: false });
+        const formattedTime = new Date(currentTime * 1000).toISOString().substr(11, 8);
+        document.getElementById('progress_upload').textContent = formattedTime;
+    });
+}
 
 // Track mouse position on waveform for targeted zooming (debounced)
 document.getElementById('waveform').addEventListener('mousemove', (e) => {
@@ -157,50 +229,6 @@ document.getElementById('waveform').addEventListener('mousemove', (e) => {
     }
 });
 
-const BASE_ZOOM = 100;
-
-// Waveform and Timeline zoom synchronization (debounced)
-wavesurfer.on('zoom', (minPxPerSec) => {
-    const zoomFactor = minPxPerSec / BASE_ZOOM;
-    const zoomLabel = `${zoomFactor.toFixed(1)}x`; 
-
-    document.querySelector('.zoom_level').textContent = zoomLabel;
-    if (timeline && Math.abs(minPxPerSec - lastWaveformZoom) > 5) { // Only sync if significant change
-        // Clear existing timeout
-        if (zoomTimeout) {
-            clearTimeout(zoomTimeout);
-        }
-        
-        // Debounce zoom synchronization
-        zoomTimeout = setTimeout(() => {
-            console.log('Waveform zoom changed:', minPxPerSec, 'Previous:', lastWaveformZoom);
-            
-            // Determine zoom direction
-            const isZoomingIn = minPxPerSec > lastWaveformZoom;
-            const zoomRatio = minPxPerSec / lastWaveformZoom;
-            
-            // Get current timeline window
-            const currentWindow = timeline.getWindow();
-            const currentCenter = mousePosition?.time ? mousePosition.time * 1000 : 
-                                (currentWindow.start.getTime() + currentWindow.end.getTime()) / 2;
-            const currentDuration = currentWindow.end.getTime() - currentWindow.start.getTime();
-            
-            // Calculate new window duration based on zoom ratio
-            const newDuration = currentDuration / zoomRatio;
-            
-            // Calculate new window centered on mouse position or current center
-            const newStart = currentCenter - (newDuration / 2);
-            const newEnd = currentCenter + (newDuration / 2);
-            
-            // Apply the new window with smooth animation disabled for responsiveness
-            timeline.setWindow(new Date(newStart), new Date(newEnd), { animation: false });
-            
-            // Update the last zoom level
-            lastWaveformZoom = minPxPerSec;
-        }, 100); // 100ms debounce
-    }
-});
-
 document.getElementById('play-upload-recording-container').addEventListener('click', () => {
     const img = document.getElementById('play-upload-recording');
     if (wavesurfer.isPlaying()) {
@@ -209,48 +237,18 @@ document.getElementById('play-upload-recording-container').addEventListener('cli
     } else {
         wavesurfer.play();
         img.src = 'static/assets/pause_black_icon_48.png';
-        onAudioProcess(wavesurfer.getCurrentTime());
+        // onAudioProcess(wavesurfer.getCurrentTime());
     }
-});
-
-wavesurfer.on('play', () => {
-    const img = document.getElementById('play-upload-recording');
-    img.src = 'static/assets/pause_black_icon_48.png';
-    onAudioProcess(wavesurfer.getCurrentTime());
-});
-
-wavesurfer.on('pause', () => {
-    const img = document.getElementById('play-upload-recording');
-    img.src = 'static/assets/play_black_icon_48.png';
 });
 
 function onAudioProcess(currentTime) {
     const formattedTime = new Date(currentTime * 1000).toISOString().substr(11, 8);
     document.getElementById('progress_upload').textContent = formattedTime;
-    if (window.timeline2) {
-        console.log('Updating timeline cursor to:', currentTime * 1000);
+    if (window.timeline2 && isTranscribing == false) {
         window.timeline2.setCustomTime(currentTime * 1000, 'cursor');
         window.timeline2.moveTo(currentTime * 1000, { animation: false });
     }
 }
-
-wavesurfer.on('audioprocess', onAudioProcess);
-
-wavesurfer.on('finish', () => {
-    const img = document.querySelector('.play_btn');
-    img.src = 'static/assets/play_black_icon_48.png';
-});
-
-// Sync timeline cursor with WaveSurfer playback
-wavesurfer.on('click', (e) => {
-    const currentTime = wavesurfer.getCurrentTime();
-            
-    // Set the cursor to the clicked position
-    timeline.setCustomTime(currentTime * 1000, 'cursor');
-    timeline.moveTo(currentTime * 1000, { animation: false });
-    const formattedTime = new Date(currentTime * 1000).toISOString().substr(11, 8);
-    document.getElementById('progress_upload').textContent = formattedTime;
-});
 
 document.getElementById('resetDataBtn').addEventListener('click', function() {
     resetAllData();
@@ -289,6 +287,7 @@ document.getElementById('audio_file').addEventListener('change', function(e) {
         }
         
         const url = URL.createObjectURL(file);
+        createWaveSurfer();
         wavesurfer.load(url);
     } else {
         // Show the no-file message if no file is selected
@@ -312,7 +311,7 @@ document.getElementById('audio_file').addEventListener('change', function(e) {
 
             timeline.moveTo(1);
             lastWaveformZoom = 100;
-        }
+        }        
     });
 });
 
@@ -336,7 +335,7 @@ function formatDuration(seconds) {
 }
 
 // --- UPLOAD FILE FOR REAL-TIME TRANSCRIPTION LOGIC ---
-let addedSegmentKeysTable = new Set(); // Track segments already added to table
+let addedSegmentKeysTable = new Set(); 
 
 function updateSegmentsTable(segments) {
     const segmentsTableBody = document.getElementById('segments-table-body-upload');
@@ -375,6 +374,17 @@ function updateSegmentsTable(segments) {
                 playSegment(start, end);
             });
         }
+
+        regions.addRegion({
+            start: segment.start,
+            end: segment.end,
+            color: colors[colorIndex % colors.length], 
+            content: segment.text,
+            drag: false,
+            resize: false,
+        });
+
+        colorIndex++; 
     });
 }
 
@@ -398,9 +408,7 @@ function playSegment(start, end) {
         return;
     }
     
-    try {
-        console.log(`Playing upload segment from ${start} to ${end}`);
-        
+    try {        
         // Clean up any existing segment playback handlers
         if (window.currentUploadSegmentHandler) {
             wavesurfer.un('audioprocess', window.currentUploadSegmentHandler);
@@ -441,15 +449,60 @@ function handleTranscriptionEvent(data) {
 
     // 2. Update the timeline with the segments
     if (data.segments && Array.isArray(data.segments)) {
-        updateTimeline(data.segments);
+        segments.push(...data.segments);
         updateSegmentsTable(data.segments);
     }    
+}
+
+function displayRTF(rtf, processingTime, audioDuration) {
+    // Create or update RTF display in the transcript container
+    let rtfDisplay = document.getElementById('rtf-display');
+    if (!rtfDisplay) {
+        // Create RTF display element
+        rtfDisplay = document.createElement('div');
+        rtfDisplay.id = 'rtf-display';
+        rtfDisplay.style.cssText = `
+            margin-top: 15px;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border-radius: 6px;
+            border: 1px solid #e9ecef;
+            font-family: monospace;
+            font-size: 14px;
+        `;
+        
+        // Insert after the transcript container
+        const transcriptContainer = document.querySelector('#upload .transcript-container');
+        if (transcriptContainer && transcriptContainer.parentNode) {
+            transcriptContainer.parentNode.insertBefore(rtfDisplay, transcriptContainer.nextSibling);
+        }
+    }
+    
+    // Format the RTF display
+    const rtfColor = rtf < 1.0 ? '#28a745' : rtf < 2.0 ? '#ffc107' : '#dc3545'; // Green, Yellow, Red
+    const rtfStatus = rtf < 1.0 ? 'Faster than real-time' : rtf < 2.0 ? 'Near real-time' : 'Slower than real-time';
+    
+    rtfDisplay.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <strong>Transcription Performance</strong>
+            <span style="color: ${rtfColor}; font-weight: bold;">RTF: ${rtf.toFixed(3)}</span>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; font-size: 12px;">
+            <div>Audio Duration: ${audioDuration.toFixed(2)}s</div>
+            <div>Processing Time: ${processingTime.toFixed(2)}s</div>
+            <div style="color: ${rtfColor}; text-align: end">${rtfStatus}</div>
+        </div>
+    `;
 }
 
 async function startTranscription() {    
     const fileInput = document.getElementById('audio_file');
     const file = fileInput.files[0];
     if (!file) return;
+
+    // Record start time for RTF calculation
+    const transcriptionStartTime = performance.now();
+    const audioDuration = wavesurfer.getDuration(); // Get audio duration in seconds
 
     const formData = new FormData();
     formData.append('audio_file', file); // field name must match FastAPI
@@ -467,10 +520,10 @@ async function startTranscription() {
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     
-    // Don't auto-play audio to avoid cursor sync issues
-    // User can manually start playback when they want
+    wavesurfer.play();
 
     while (true) {
+        isTranscribing = true;
         const { value, done } = await reader.read();
         if (done) break;
         const chunk = decoder.decode(value, { stream: true });
@@ -487,6 +540,17 @@ async function startTranscription() {
         }
     }
 
+    // Calculate and display RTF
+    const transcriptionEndTime = performance.now();
+    const processingTimeMs = transcriptionEndTime - transcriptionStartTime;
+    const processingTimeSeconds = processingTimeMs / 1000;
+    const rtf = processingTimeSeconds / audioDuration;
+
+    // Display RTF in the UI
+    displayRTF(rtf, processingTimeSeconds, audioDuration);
+
+    updateTimeline(segments);
+    isTranscribing = false;
     document.getElementById('start-trasncript-btn').textContent = 'Start Transcription';
 };
 
@@ -501,51 +565,6 @@ function initTimeline() {
     const container = document.getElementById('transcript-timeline-upload');
     timelineItems = new vis.DataSet([]);
     const options = {
-        dataAttributes: ['id'],
-        onUpdate: function (item, callback) {
-            // Get current values in seconds
-            const currentStart = item.start instanceof Date ? item.start.getTime() / 1000 : item.start / 1000;
-            const currentEnd = item.end instanceof Date ? item.end.getTime() / 1000 : item.end / 1000;
-
-            // Show modal
-            const modal = document.getElementById('timeline-edit-modal');
-            document.getElementById('timeline-edit-text').value = item.content;
-            document.getElementById('timeline-edit-start').value = currentStart;
-            document.getElementById('timeline-edit-end').value = currentEnd;
-            modal.style.display = 'flex';
-
-            // Save handler
-            function saveHandler() {
-                const newText = document.getElementById('timeline-edit-text').value.trim();
-                const newStart = parseFloat(document.getElementById('timeline-edit-start').value);
-                const newEnd = parseFloat(document.getElementById('timeline-edit-end').value);
-
-                if (!newText || isNaN(newStart) || isNaN(newEnd) || newStart >= newEnd) {
-                    alert('Invalid input. Please check your values.');
-                    return;
-                }
-
-                item.content = newText;
-                item.start = new Date(newStart * 1000);
-                item.end = new Date(newEnd * 1000);
-
-                modal.style.display = 'none';
-                document.getElementById('timeline-edit-save').removeEventListener('click', saveHandler);
-                document.getElementById('timeline-edit-cancel').removeEventListener('click', cancelHandler);
-                callback(item);
-            }
-
-            // Cancel handler
-            function cancelHandler() {
-                modal.style.display = 'none';
-                document.getElementById('timeline-edit-save').removeEventListener('click', saveHandler);
-                document.getElementById('timeline-edit-cancel').removeEventListener('click', cancelHandler);
-                callback(null);
-            }
-
-            document.getElementById('timeline-edit-save').addEventListener('click', saveHandler);
-            document.getElementById('timeline-edit-cancel').addEventListener('click', cancelHandler);
-        },
         showCurrentTime: true,
         editable: {
             add: false,
@@ -605,14 +624,5 @@ function updateTimeline(segments) {
             });
             addedSegmentKeys.add(key);
         }
-        regions.addRegion({
-            start: segment.start,
-            end: segment.end,
-            color: colors[colorIndex % colors.length], 
-            content: segment.text,
-            drag: false,
-            resize: false,
-        });
-        colorIndex++; 
     });
 }

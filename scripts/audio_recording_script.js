@@ -48,6 +48,8 @@ function resetRecordingData() {
     if (window.lastRecordedWaveSurfer) {
         window.lastRecordedWaveSurfer.destroy();
         window.lastRecordedWaveSurfer = null;
+        document.getElementById('recordings').style.display = 'none'; 
+        document.getElementById('no-waveform-message-playback').style.display = 'flex';
     }
     
     if (window.wavesurfer) {
@@ -82,6 +84,13 @@ function resetRecordingData() {
     historicalTranscript = '';
     currentSegments = [];
     recordingDuration = 0;
+    transcriptionStartTime = null;
+    
+    // Clear RTF display
+    const rtfDisplay = document.getElementById('rtf-display-recording');
+    if (rtfDisplay) {
+        rtfDisplay.remove();
+    }
     
     // Stop recording timer
     stopRecordingTimer();
@@ -160,51 +169,6 @@ function initTimeline() {
     const container = document.getElementById('transcript-timeline');
     timelineItems = new vis.DataSet([]);
     const options = {
-        dataAttributes: ['id'],
-        onUpdate: function (item, callback) {
-            // Get current values in seconds
-            const currentStart = item.start instanceof Date ? item.start.getTime() / 1000 : item.start / 1000;
-            const currentEnd = item.end instanceof Date ? item.end.getTime() / 1000 : item.end / 1000;
-
-            // Show modal
-            const modal = document.getElementById('timeline-edit-modal');
-            document.getElementById('timeline-edit-text').value = item.content;
-            document.getElementById('timeline-edit-start').value = currentStart;
-            document.getElementById('timeline-edit-end').value = currentEnd;
-            modal.style.display = 'flex';
-
-            // Save handler
-            function saveHandler() {
-                const newText = document.getElementById('timeline-edit-text').value.trim();
-                const newStart = parseFloat(document.getElementById('timeline-edit-start').value);
-                const newEnd = parseFloat(document.getElementById('timeline-edit-end').value);
-
-                if (!newText || isNaN(newStart) || isNaN(newEnd) || newStart >= newEnd) {
-                    alert('Invalid input. Please check your values.');
-                    return;
-                }
-
-                item.content = newText;
-                item.start = new Date(newStart * 1000);
-                item.end = new Date(newEnd * 1000);
-
-                modal.style.display = 'none';
-                document.getElementById('timeline-edit-save').removeEventListener('click', saveHandler);
-                document.getElementById('timeline-edit-cancel').removeEventListener('click', cancelHandler);
-                callback(item);
-            }
-
-            // Cancel handler
-            function cancelHandler() {
-                modal.style.display = 'none';
-                document.getElementById('timeline-edit-save').removeEventListener('click', saveHandler);
-                document.getElementById('timeline-edit-cancel').removeEventListener('click', cancelHandler);
-                callback(null);
-            }
-
-            document.getElementById('timeline-edit-save').addEventListener('click', saveHandler);
-            document.getElementById('timeline-edit-cancel').addEventListener('click', cancelHandler);
-        },
         showCurrentTime: true,
         editable: {
             add: false,
@@ -304,6 +268,7 @@ const segmentsTableBody = document.getElementById('segments-table-body-recording
 
 // --- Global State ---
 let peerConnection; let webrtc_id; let eventSource; let historicalTranscript = "";
+let transcriptionStartTime = null;
 
 // --- Default Configuration for the Text Area ---
 const defaultConfig = {
@@ -435,9 +400,10 @@ async function setupWebRTC() {
             if (peerConnection.connectionState === 'connected') {
                 transcriptTextElement.textContent = historicalTranscript;
                 segmentsTableBody.innerHTML = ''; // Clear table on new session
+                // Start tracking transcription time when connection is established
+                transcriptionStartTime = performance.now();
             }
-            // This call will update the button to "Stop Recording" when connected
-            // or reset it if the connection fails.
+
             updateButtonState();
         });
 
@@ -654,6 +620,18 @@ function stop() {
         historicalTranscript = transcriptTextElement.textContent + "\n\n";
     }
     
+    // Calculate and display final RTF when recording stops
+    if (transcriptionStartTime && recordingDuration > 0) {
+        console.log("Recording duration from timer:", recordingDuration);
+        const transcriptionEndTime = performance.now();
+        const processingTimeMs = transcriptionEndTime - transcriptionStartTime;
+        const processingTimeSeconds = processingTimeMs / 1000;
+        const rtf = processingTimeSeconds / recordingDuration;
+        
+        // Display final RTF in the UI
+        displayRecordingRTF(rtf, processingTimeSeconds, recordingDuration);
+    }
+    
     updateButtonState();
 }
 
@@ -665,6 +643,47 @@ function getRandomColor() {
         "rgba(95, 92, 185, 0.9)"
     ];
     return colors[Math.floor(Math.random() * colors.length)];
+}
+
+function displayRecordingRTF(rtf, processingTime, audioDuration) {
+    // Create or update RTF display in the recording transcript container
+    let rtfDisplay = document.getElementById('rtf-display-recording');
+    if (!rtfDisplay) {
+        // Create RTF display element
+        rtfDisplay = document.createElement('div');
+        rtfDisplay.id = 'rtf-display-recording';
+        rtfDisplay.style.cssText = `
+            margin-top: 15px;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border-radius: 6px;
+            border: 1px solid #e9ecef;
+            font-family: monospace;
+            font-size: 14px;
+        `;
+        
+        // Insert after the transcript container
+        const transcriptContainer = document.getElementById('transcript-container-recording');
+        if (transcriptContainer && transcriptContainer.parentNode) {
+            transcriptContainer.parentNode.insertBefore(rtfDisplay, transcriptContainer.nextSibling);
+        }
+    }
+    
+    // Format the RTF display
+    const rtfColor = rtf < 1.0 ? '#28a745' : rtf < 2.0 ? '#ffc107' : '#dc3545'; // Green, Yellow, Red
+    const rtfStatus = rtf < 1.0 ? 'Faster than real-time' : rtf < 2.0 ? 'Near real-time' : 'Slower than real-time';
+    
+    rtfDisplay.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <strong>Real-Time Transcription Performance</strong>
+            <span style="color: ${rtfColor}; font-weight: bold;">RTF: ${rtf.toFixed(3)}</span>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; font-size: 12px;">
+            <div>Audio Duration: ${audioDuration.toFixed(2)}s</div>
+            <div>Processing Time: ${processingTime.toFixed(2)}s</div>
+            <div style="color: ${rtfColor}; text-align: end">${rtfStatus}</div>
+        </div>
+    `;
 }
 
 // --- TIME FORMATTING HELPER FUNCTIONS ---

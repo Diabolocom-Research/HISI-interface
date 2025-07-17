@@ -120,7 +120,7 @@ body {
 }
 
 /* Transcript */
-.transcript-container {
+.transcript-container, .transcript-container-recording {
     margin-top: 2em;
     border-radius: 4px;
     padding: 6px 12px;
@@ -655,17 +655,15 @@ thead th {
 }
 
 .no-file-message p:first-of-type {
-    color: #333;
-    margin: 0;
-    font-weight: 500;
+    color: rgb(51 65 85);
+    font-weight: 600;
     font-size: 17px;
 }
 
 .no-file-message p:not(:first-of-type) {
-    margin: 0;
     font-size: 14px;
     margin-top: 3px;
-    color: #71717A;
+    color: rgb(100 116 139);
     font-weight: normal;
 }
 

@@ -10,6 +10,25 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Whisper Transcription: Configure Model</title>
     <link rel="stylesheet" href="/static/scripts/style.css?v=2">
+    <style>
+        .icon_container {
+            background-color: #F1F5F9;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 12px 12px;
+            margin-bottom: 10px;
+        }
+
+        .icon_container img{
+            width: 53px;
+        }
+
+        #no-waveform-message-playback{
+            margin-top: 2em;
+        }
+    </style>
 </head>
 <body>
 
@@ -31,7 +50,6 @@
             <div class="tabs">
                 <button class="tab-button active" data-tab="record">Record Audio</button>
                 <button class="tab-button" data-tab="upload">Upload Audio File</button>
-                <button class="tab-button" data-tab="metrics">Evaluation Metrics</button>
             </div>
 
             <!-- Modal for editing timeline item -->
@@ -60,7 +78,9 @@
                     <!-- Recording Waveform Container -->
                     <div class="waveform-container-new-recording">
                         <div id="no-recording-message" class="no-recording-message">
-                            <img src="static/assets/speaker_black_icon_48.png" alt="speaker" style="width: 44px; margin-bottom: 8px;">
+                            <div class="icon_container">
+                                <img src="static/assets/icons8-microphone-100.png" alt="speaker">
+                            </div>
                             <p>No recording started</p>
                             <p>Press "Start Recording" to preview the waveform</p>
                         </div>
@@ -91,14 +111,22 @@
                     <!-- Transcript Box -->
                     <div class="waveform-container">
                         <p class="badge">Transcript</p>
-                        <div class="transcript-container" id="transcript-container">
+                        <div class="transcript-container" id="transcript-container-recording">
                             <p id="transcript-text">Speak to see transcript...</p>
                         </div>
                     </div>
 
                     <!-- Playback Waveform Container -->
                     <div class="waveform-container-new">
-                        <div id="recordings" style="margin-top: 1em; height: calc(100% - 40px); max-height: 222px;"></div>
+                        <div id="no-waveform-message-playback" class="no-recording-message">
+                            <div class="icon_container">
+                                <img src="static/assets/icons8-musical-note-100.png" alt="speaker">
+                            </div>
+                            <p>No waveform created</p>
+                            <p>Complete transcript to preview the waveform</p>
+                        </div>
+
+                        <div id="recordings" style="margin-top: 1em; height: calc(100% - 40px); max-height: 222px; display: none;"></div>
 
                         <div class="controls-audio-upload">
                             <div class="left_controls">
@@ -151,65 +179,15 @@
                 </div>
             </div>
 
-           <div id="metrics" class="tab-content">
-                <div class="container">
-                    <form id="eval-form">
-                        <div class="form-group">
-                            <label for="audio" style="font-weight: 500;">Select audio file for evaluation:</label>
-                            
-                            <!-- Enhanced File Upload Area -->
-                            <div class="file-upload-area" id="file-upload-area">
-                                <div class="upload-content">
-                                    <i class="fa-solid fa-cloud-arrow-up upload-icon"></i>
-                                    <h3>Drag & drop your audio file here</h3>
-                                    <p>or click to browse files</p>
-                                    <span class="file-types">Supported: MP3, WAV, M4A, FLAC</span>
-                                </div>
-                                <input type="file" name="audio" id="audio" class="audio-evaluation" accept="audio/*" required>
-                            </div>
-                            
-                            <!-- Selected File Display -->
-                            <div id="selected-file-display" class="selected-file-display" style="display:none;">
-                                <div class="file-info">
-                                    <i class="fa-solid fa-file-audio file-icon"></i>
-                                    <div class="file-details">
-                                        <span class="filename" id="selected-filename"></span>
-                                        <span class="file-size" id="selected-filesize"></span>
-                                    </div>
-                                </div>
-                                <button type="button" id="remove-file-btn" class="remove-btn" title="Remove file">
-                                    <i class="fa-solid fa-xmark"></i>
-                                </button>
-                            </div>
-                        </div>
-                        
-                        <div class="form-group" style="margin-top: 2em;">
-                            <label style="font-weight: 500;" for="reference">Reference transcript:</label>
-                            <div class="textarea-wrapper">
-                                <textarea name="reference" id="reference" class="reference-textarea" placeholder="Enter the expected transcript" required rows="4"></textarea>
-                            </div>
-                        </div>
-                        
-                        <button disabled type="submit" id="evaluation-btn" class="evaluation-btn">
-                            <i class="fa-solid fa-chart-line"></i>
-                            Run Evaluation
-                        </button>
-                    </form>
-
-                    <div class="results-section">
-                        <p style="font-weight: 500; padding-left: 2px;">Evaluation Results:</p>
-                        <div id="metrics_div" class="metrics-container"></div>
-                    </div>
-                </div>
-            </div>
-
             <div id="upload" class="tab-content">
                 <div class="container">
                     <!-- Playback Waveform Container -->
                     <div class="waveform-container-new"> 
                                                 
                         <div id="no-file-message" class="no-file-message">
-                            <img src="/static/assets/file_black_icon_96.png" alt="file" style="width: 68px; margin-bottom: 10px;">
+                            <div class="icon_container">
+                                <img src="/static/assets/icons8-music-folder-100.png" alt="file">
+                            </div>
                             <p>No audio file selected</p>
                             <p>Upload an audio file to preview the waveform</p>
                         </div>
@@ -253,18 +231,18 @@
 
                     <button id="start-trasncript-btn" type="submit" disabled>Start Transcription</button>
                     
-                    <!-- Timeline Container -->
-                    <div class="waveform-container">
-                        <p class="badge">Timeline</p>
-                        <div id="transcript-timeline-upload" style="margin: 2em 0; margin-bottom: 0;"></div>
-                    </div>
-
                     <!-- Transcript Box -->
                     <div class="waveform-container">
                         <p class="badge">Transcript</p>
                         <div class="transcript-container" id="transcript-container">
                             <p id="output">Upload a file to see transcript...</p>
                         </div>
+                    </div>
+
+                    <!-- Timeline Container -->
+                    <div class="waveform-container">
+                        <p class="badge">Timeline</p>
+                        <div id="transcript-timeline-upload" style="margin: 2em 0; margin-bottom: 0;"></div>
                     </div>
 
                     <div class="segments-table-container">
@@ -292,11 +270,9 @@
     </div>
 
     <!-- Script for managing audio recording -->
-    <script src="/static/scripts/audio_recording_script.js?v=4"></script>
+    <script src="/static/scripts/audio_recording_script.js?v=20"></script>
     <!-- Script for managing audio file upload -->
-    <script src="/static/scripts/audio_file_script.js?v=4" type="module"></script>
-    <!-- Script for managing evaluation metrics -->
-    <script src="/static/scripts/evaluation_script.js?v=2"></script>
+    <script src="/static/scripts/audio_file_script.js?v=2" type="module"></script>
     <!-- Script to manage wavesufer library -->
     <script src="/static/scripts/wavesurfers.js?v=2" type="module"></script>
     <script>
