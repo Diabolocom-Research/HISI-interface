@@ -32,6 +32,7 @@ function resetAllData() {
     
     const segmentsTableBody = document.getElementById('segments-table-body-upload');
     if (segmentsTableBody) {
+        document.getElementById('no-file-message-table-upload').style.display = 'flex';
         segmentsTableBody.innerHTML = '';
     }
     
@@ -338,6 +339,7 @@ function formatDuration(seconds) {
 let addedSegmentKeysTable = new Set(); 
 
 function updateSegmentsTable(segments) {
+    document.getElementById('no-file-message-table-upload').style.display = 'none';
     const segmentsTableBody = document.getElementById('segments-table-body-upload');
     
     segments.forEach(segment => {

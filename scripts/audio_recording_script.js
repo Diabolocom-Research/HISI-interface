@@ -12,6 +12,7 @@ function resetRecordingData() {
     
     // Clear segments table
     if (segmentsTableBody) {
+        document.getElementById('no-file-message-table-record').style.display = 'flex';
         segmentsTableBody.innerHTML = '';
     }
     
@@ -460,6 +461,10 @@ function handleServerUpdate(data) {
         document.getElementById('transcript-container').scrollTop = document.getElementById('transcript-container').scrollHeight;
         const segments = payload.segments || [];
         
+        if (segments) {
+            document.getElementById('no-file-message-table-record').style.display = 'none';
+        }
+
         // Store segments globally
         currentSegments = segments;
 

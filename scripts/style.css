@@ -204,7 +204,6 @@ body {
     font-size: 14px;
     background-color: #fff;
     color: #333;
-    min-height: 100px;
 }
 
 .segments-table th {
@@ -342,7 +341,7 @@ body {
     max-height: 260px;
 }
 
-#no-file-message {
+.no-file-message {
     margin-top: 2em;
     display: flex;
     flex-direction: column;
@@ -352,7 +351,21 @@ body {
     text-align: center;
 }
 
-#no-file-message p {
+.no-file-message-table {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    color: #71717A;
+    text-align: center;
+    margin: 2em 0;
+}
+
+.no-file-message-table p {
+    margin: 0.3em 0;
+}
+
+.no-file-message p {
     margin: 0.3em 0;
 }
 
@@ -652,6 +665,19 @@ thead th {
 .audio_duration_container span {
     margin-top: 5px;
     color: #9e9e9e;
+}
+
+.no-file-message-table p:first-of-type {
+    color: rgb(51 65 85);
+    font-weight: 600;
+    font-size: 17px;
+}
+
+.no-file-message-table p:not(:first-of-type) {
+    font-size: 14px;
+    margin-top: 3px;
+    color: rgb(100 116 139);
+    font-weight: normal;
 }
 
 .no-file-message p:first-of-type {
