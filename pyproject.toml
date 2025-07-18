@@ -170,10 +170,8 @@ docs = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/your-username/asr-interface"
-Documentation = "https://asr-interface.readthedocs.io"
-Repository = "https://github.com/your-username/asr-interface.git"
-Issues = "https://github.com/your-username/asr-interface/issues"
+Homepage = "https://github.com/Diabolocom-Research/ASR-interface"
+Repository = "https://github.com/Diabolocom-Research/ASR-interface"
 
 [project.scripts]
 asr-interface = "asr_interface.cli:main"
