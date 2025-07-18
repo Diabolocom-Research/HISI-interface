@@ -291,7 +291,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - Icons provided by [Icons8](https://icons8.com/license)
 - WebRTC implementation powered by [FastRTC](https://github.com/fastrtc/fastrtc)
 
-> **Note**: Screenshot placeholder - Add your ASR Interface screenshot to `assets/asr_interface_screenshot.png` to display it here.
+![ASR Interface Screenshot](assets/asr_interface_screenshot.png)
 
 ## Troubleshooting
 
