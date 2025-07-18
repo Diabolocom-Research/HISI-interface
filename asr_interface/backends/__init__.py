@@ -1,9 +1,11 @@
 """ASR backends and model loaders."""
 
+from ..core.protocols import ASRBase
 from .whisper_online_processor import OnlineASRProcessor, asr_factory, SAMPLING_RATE
 from .registry import MODEL_LOADERS
 
 __all__ = [
+    "ASRBase",
     "OnlineASRProcessor",
     "asr_factory",
     "SAMPLING_RATE",

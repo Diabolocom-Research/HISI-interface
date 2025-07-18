@@ -157,8 +157,6 @@ asr_interface/
 # Start web server
 asr-interface serve [--host HOST] [--port PORT] [--reload]
 
-# Transcribe audio file
-asr-interface transcribe audio.wav [--model MODEL] [--language LANG]
 
 # Show project info
 asr-interface info
@@ -175,7 +173,7 @@ For most use cases, you can provide your own ASR backend and reuse the existing 
 ```python
 from asr_interface.core.protocols import ModelLoader, ASRProcessor
 from asr_interface.core.config import ASRConfig
-from asr_interface.backends.whisper_online_processor import OnlineASRProcessor
+from asr_interface.backends import ASRBase, OnlineASRProcessor
 
 class MyCustomASR(ASRBase):
     """Your custom ASR backend implementing ASRBase."""
@@ -250,7 +248,7 @@ class MyCustomRealTimeEngine(ASRProcessor):
         pass
 ```
 
-For detailed integration guides, see [Custom Backend Integration](docs/INTEGRATION_GUIDE.md).
+For detailed integration guides, see [docs/INTEGRATION_GUIDE.md](docs/INTEGRATION_GUIDE.md).
 
 ## Development
 
@@ -294,10 +292,11 @@ asr-interface/
 
 For detailed documentation, see the [docs/](docs/) directory:
 
-- [Installation Guide](docs/README.md#installation)
-- [API Reference](docs/README.md#api-reference)
-- [Architecture Overview](docs/README.md#architecture)
-- [Development Guide](docs/README.md#development)
+- **[Integration Guide](docs/INTEGRATION_GUIDE.md)** - Complete guide for integrating custom ASR backends
+- **[API Reference](docs/API_REFERENCE.md)** - Complete API documentation
+- **[Architecture](docs/ARCHITECTURE.md)** - System architecture and design decisions
+- **[Deployment](docs/DEPLOYMENT.md)** - Production deployment guide
+- **[Testing](docs/TESTING.md)** - Testing strategies and examples
 
 ## Contributing
 

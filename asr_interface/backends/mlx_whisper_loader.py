@@ -1,51 +1,13 @@
 """MLX Whisper ASR backend implementation."""
 
 import logging
-import sys
 import numpy as np
 from typing import Any, Dict, List, Optional, Tuple
-from abc import ABC, abstractmethod
 
 from ..core.config import ASRConfig
-from ..core.protocols import ModelLoader, ASRProcessor
+from ..core.protocols import ModelLoader, ASRProcessor, ASRBase
 
 logger = logging.getLogger(__name__)
-
-
-class ASRBase(ABC):
-    """
-    Abstract Base Class for an Automatic Speech Recognition (ASR) backend.
-
-    This class defines a standard interface that the OnlineASRProcessor can use
-    to interact with different ASR models.
-    """
-    sep = " "  # Default separator
-
-    def __init__(self, lan: str, modelsize: str = None, cache_dir: str = None, model_dir: str = None, logfile=sys.stderr):
-        self.logfile = logfile
-        self.transcribe_kargs = {}
-        self.original_language = None if lan == "auto" else lan
-        self.model = self.load_model(modelsize, cache_dir, model_dir)
-
-    @abstractmethod
-    def load_model(self, modelsize: str = None, cache_dir: str = None, model_dir: str = None):
-        raise NotImplementedError("must be implemented in the child class")
-
-    @abstractmethod
-    def transcribe(self, audio, init_prompt: str = "") -> dict:
-        raise NotImplementedError("must be implemented in the child class")
-
-    @abstractmethod
-    def ts_words(self, transcription_result: Any) -> List[Tuple[float, float, str]]:
-        raise NotImplementedError("must be implemented in the child class")
-
-    @abstractmethod
-    def segments_end_ts(self, transcription_result: Any) -> List[float]:
-        raise NotImplementedError("must be implemented in the child class")
-
-    @abstractmethod
-    def use_vad(self):
-        raise NotImplementedError("must be implemented in the child class")
 
 
 class MLXWhisper(ASRBase):
