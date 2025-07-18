@@ -356,7 +356,6 @@ function updateTimeline(segments) {
                 max: lastSegment.end * 1000 + 1000,
             });
         }
-        timeline.fit(); // Adjust timeline to show all content
     } else {
         timeline.setOptions({ max: 10000 });
         timeline.moveTo(0, { animation: false });
@@ -407,85 +406,38 @@ async function setupWebRTC() {
     document.getElementById('mic').style.display = 'block';
     document.getElementById('no-recording-message').style.display = 'none';
 
-    let mediaStream = null;
-
     try {
-        const config = window.RTC_CONFIGURATION; 
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+        const config = window.RTC_CONFIGURATION;
         peerConnection = new RTCPeerConnection(config);
 
-        // Set up connection state change handler with audio stream management
-        peerConnection.addEventListener('connectionstatechange', async () => {
+        stream.getTracks().forEach(track => peerConnection.addTrack(track, stream));
+
+        peerConnection.addEventListener('connectionstatechange', () => {
             if (peerConnection.connectionState === 'connected') {
-                // Only start audio capture when connection is established
-                if (!mediaStream) {
-                    try {
-                        mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                        mediaStream.getTracks().forEach(track => peerConnection.addTrack(track, mediaStream));
-                        
-                        // Renegotiate the connection to include the audio tracks
-                        const offer = await peerConnection.createOffer();
-                        await peerConnection.setLocalDescription(offer);
-                        
-                        const response = await fetch('/webrtc/renegotiate', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ 
-                                sdp: peerConnection.localDescription.sdp, 
-                                type: peerConnection.localDescription.type, 
-                                webrtc_id: webrtc_id 
-                            })
-                        });
-                        
-                        if (response.ok) {
-                            const serverResponse = await response.json();
-                            await peerConnection.setRemoteDescription(serverResponse);
-                        }
-                    } catch (audioErr) {
-                        console.error('Failed to start audio capture after connection:', audioErr);
-                        alert('Failed to start audio recording. Please check microphone permissions.');
-                        stop();
-                        return;
-                    }
-                }
-                
                 transcriptTextElement.textContent = historicalTranscript;
                 segmentsTableBody.innerHTML = '';
                 transcriptionStartTime = performance.now();
-            } else if (peerConnection.connectionState === 'failed' || peerConnection.connectionState === 'disconnected') {
-                // Stop media stream if connection fails
-                if (mediaStream) {
-                    mediaStream.getTracks().forEach(track => track.stop());
-                    mediaStream = null;
-                }
             }
             updateButtonState();
         });
 
         const dataChannel = peerConnection.createDataChannel('text');
-        
-        // Create initial offer without audio tracks
         const offer = await peerConnection.createOffer();
         await peerConnection.setLocalDescription(offer);
 
-        await new Promise((resolve) => {
-            if (peerConnection.iceGatheringState === "complete") {
-                resolve();
-            } else {
-                const checkState = () => {
-                    if (peerConnection.iceGatheringState === "complete") {
-                        peerConnection.removeEventListener("icegatheringstatechange", checkState);
-                        resolve();
-                    }
-                };
-                peerConnection.addEventListener("icegatheringstatechange", checkState);
-            }
-        });
+        await waitForIceGatheringComplete(peerConnection);
 
         webrtc_id = Math.random().toString(36).substring(7);
         const response = await fetch('/webrtc/offer', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ sdp: peerConnection.localDescription.sdp, type: peerConnection.localDescription.type, webrtc_id: webrtc_id })
+            body: JSON.stringify({
+                sdp: peerConnection.localDescription.sdp,
+                type: peerConnection.localDescription.type,
+                webrtc_id: webrtc_id
+            })
         });
         if (!response.ok) throw new Error(`Server returned an error: ${response.status} ${response.statusText}`);
 
@@ -497,20 +449,30 @@ async function setupWebRTC() {
         eventSource.onerror = (err) => {
             console.error("Transcript stream disconnected.", err);
             eventSource.close();
-            stop(); // Clean up on error
+            stop();
         };
     } catch (err) {
         console.error('Failed to establish connection.', err);
         alert('Failed to establish connection. Check console for details.');
-        
-        // Clean up media stream on error
-        if (mediaStream) {
-            mediaStream.getTracks().forEach(track => track.stop());
-        }
         stop();
     }
 }
 
+function waitForIceGatheringComplete(pc) {
+    return new Promise((resolve) => {
+        if (pc.iceGatheringState === "complete") {
+            resolve();
+        } else {
+            const checkState = () => {
+                if (pc.iceGatheringState === "complete") {
+                    pc.removeEventListener("icegatheringstatechange", checkState);
+                    resolve();
+                }
+            };
+            pc.addEventListener("icegatheringstatechange", checkState);
+        }
+    });
+}
 /**
  * Handles incoming transcription updates from the server (SSE).
  * @param {string} data - JSON string containing transcription payload.
