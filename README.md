@@ -287,6 +287,11 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - Uses [WebRTC](https://webrtc.org/) for real-time audio streaming
 - Supports [Whisper](https://github.com/openai/whisper) and other ASR models
 - Audio processing powered by [librosa](https://librosa.org/)
+- Real-time streaming implementation inspired by [whisper_streaming](https://github.com/ufal/whisper_streaming)
+- Icons provided by [Icons8](https://icons8.com/license)
+- WebRTC implementation powered by [FastRTC](https://github.com/fastrtc/fastrtc)
+
+> **Note**: Screenshot placeholder - Add your ASR Interface screenshot to `assets/asr_interface_screenshot.png` to display it here.
 
 ## Troubleshooting
 
