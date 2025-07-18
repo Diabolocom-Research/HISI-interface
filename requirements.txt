@@ -124,5 +124,5 @@ uvicorn==0.34.2
 websockets==15.0.1
 whisper==1.1.10
 whisper-timestamped==1.15.8
--e git+https://github.com/QuentinFuxa/WhisperLiveKit.git@ac8d9405694824c67c92f18f6dab167eaa33aece#egg=whisperlivekit
+-e git+ssh://git@github.com/QuentinFuxa/WhisperLiveKit.git@ac8d9405694824c67c92f18f6dab167eaa33aece#egg=whisperlivekit
 wtpsplit==2.1.5
