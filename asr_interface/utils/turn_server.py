@@ -1,3 +1,9 @@
+"""TURN server utilities for WebRTC connections.
+
+This module provides utilities for obtaining TURN server credentials from various
+providers (Hugging Face, Twilio, Cloudflare) for WebRTC connections.
+"""
+
 import os
 from typing import Literal, Optional, Dict, Any
 import requests
@@ -18,6 +24,9 @@ def get_rtc_credentials(
 
     Returns:
         Dictionary containing the RTC configuration
+
+    Raises:
+        Exception: If credentials cannot be obtained from the specified provider
     """
     try:
         if provider == "hf":
@@ -26,6 +35,8 @@ def get_rtc_credentials(
             return get_twilio_credentials(**kwargs)
         elif provider == "cloudflare":
             return get_cloudflare_credentials(**kwargs)
+        else:
+            raise ValueError(f"Unsupported provider: {provider}")
     except Exception as e:
         raise Exception(f"Failed to get RTC credentials ({provider}): {str(e)}")
 
@@ -38,6 +49,16 @@ def get_hf_credentials(token: Optional[str] = None) -> Dict[str, Any]:
     1. Create a Hugging Face account at huggingface.co
     2. Visit: https://huggingface.co/spaces/fastrtc/turn-server-login
     3. Set HF_TOKEN environment variable or pass token directly
+
+    Args:
+        token: Hugging Face token (optional, will use env var if not provided)
+
+    Returns:
+        Dictionary containing TURN server configuration
+
+    Raises:
+        ValueError: If HF_TOKEN is not set
+        Exception: If credentials cannot be obtained
     """
     token = token or os.environ.get("HF_TOKEN")
     if not token:
@@ -62,6 +83,17 @@ def get_twilio_credentials(
     3. Set environment variables:
        - TWILIO_ACCOUNT_SID (or pass directly)
        - TWILIO_AUTH_TOKEN (or pass directly)
+
+    Args:
+        account_sid: Twilio Account SID (optional, will use env var if not provided)
+        auth_token: Twilio Auth Token (optional, will use env var if not provided)
+
+    Returns:
+        Dictionary containing TURN server configuration
+
+    Raises:
+        ValueError: If Twilio credentials are not found
+        Exception: If credentials cannot be obtained
     """
     account_sid = account_sid or os.environ.get("TWILIO_ACCOUNT_SID")
     auth_token = auth_token or os.environ.get("TWILIO_AUTH_TOKEN")
@@ -95,6 +127,13 @@ def get_cloudflare_credentials(
         key_id: Cloudflare Turn Token ID (optional, will use env var if not provided)
         api_token: Cloudflare API Token (optional, will use env var if not provided)
         ttl: Time-to-live for credentials in seconds (default: 24 hours)
+
+    Returns:
+        Dictionary containing TURN server configuration
+
+    Raises:
+        ValueError: If Cloudflare credentials are not found
+        Exception: If credentials cannot be obtained
     """
     key_id = key_id or os.environ.get("TURN_KEY_ID")
     api_token = api_token or os.environ.get("TURN_KEY_API_TOKEN")
@@ -119,6 +158,5 @@ def get_cloudflare_credentials(
         )
 
 
-if __name__ == "__main__":
-    # Test
-    print(get_rtc_credentials(provider="hf"))
+# Export the main function for easy access
+__all__ = ["get_rtc_credentials", "get_hf_credentials", "get_twilio_credentials", "get_cloudflare_credentials"]

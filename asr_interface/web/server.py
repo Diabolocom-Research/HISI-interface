@@ -14,12 +14,13 @@ from fastapi.staticfiles import StaticFiles
 from jiwer import wer, cer
 from fastrtc import Stream
 
-from ..core.config import ASRConfig
+from ..core.config import ASRConfig, TURNConfig
 from ..core.store import ASRComponentsStore
 from ..core.protocols import ASRProcessor
 from ..handlers.stream_handler import RealTimeASRHandler
 from ..backends.registry import get_loader
 from ..utils.audio import load_audio_from_bytes, SAMPLING_RATE
+from ..utils.turn_server import get_rtc_credentials
 
 logger = logging.getLogger(__name__)
 
@@ -45,9 +46,56 @@ class ASRServer:
         self.master_handler = RealTimeASRHandler(store=self.store)
         self.stream = Stream(handler=self.master_handler, mode="send-receive", modality="audio")
         
+        # Default RTC configuration (STUN only)
+        self.rtc_config = {"iceServers": [{"urls": "stun:stun.l.google.com:19302"}]}
+        
         self._setup_routes()
         self._setup_static_files()
         self._setup_events()
+    
+    def _get_rtc_configuration(self, turn_config: Optional[TURNConfig] = None) -> Dict[str, Any]:
+        """
+        Get RTC configuration with optional TURN server support.
+        
+        Args:
+            turn_config: Optional TURN server configuration
+            
+        Returns:
+            Dictionary containing RTC configuration
+        """
+        if not turn_config or turn_config.provider == "none":
+            return self.rtc_config
+        
+        try:
+            if turn_config.provider == "hf":
+                credentials = get_rtc_credentials(
+                    provider="hf", 
+                    token=turn_config.token
+                )
+            elif turn_config.provider == "twilio":
+                credentials = get_rtc_credentials(
+                    provider="twilio",
+                    account_sid=turn_config.account_sid,
+                    auth_token=turn_config.auth_token
+                )
+            elif turn_config.provider == "cloudflare":
+                credentials = get_rtc_credentials(
+                    provider="cloudflare",
+                    key_id=turn_config.key_id,
+                    api_token=turn_config.api_token,
+                    ttl=turn_config.ttl
+                )
+            else:
+                logger.warning(f"Unknown TURN provider: {turn_config.provider}")
+                return self.rtc_config
+            
+            # Merge with default STUN configuration
+            ice_servers = self.rtc_config["iceServers"] + credentials.get("iceServers", [])
+            return {"iceServers": ice_servers}
+            
+        except Exception as e:
+            logger.error(f"Failed to get TURN credentials: {e}")
+            return self.rtc_config
     
     def _setup_static_files(self) -> None:
         """Setup static file serving."""
@@ -75,6 +123,11 @@ class ASRServer:
                 self.store.separator = metadata.get("separator", " ")
                 self.store.is_ready = True
                 self.store.current_config_id = config_id
+                
+                # Update RTC configuration if TURN config is provided
+                if config.turn_config:
+                    self.rtc_config = self._get_rtc_configuration(config.turn_config)
+                    logger.info(f"Updated RTC configuration with TURN server: {config.turn_config.provider}")
                 
                 logger.info(f"Processor for config ID '{config_id}' is ready.")
                 return {"status": "success", "message": "Processor created successfully."}
@@ -181,9 +234,8 @@ class ASRServer:
             with open("index.html", "r") as f:
                 html_content = f.read()
             
-            # Inject WebRTC configuration
-            rtc_config = {"iceServers": [{"urls": "stun:stun.l.google.com:19302"}]}
-            html_content = html_content.replace("##RTC_CONFIGURATION##", json.dumps(rtc_config))
+            # Inject current RTC configuration
+            html_content = html_content.replace("##RTC_CONFIGURATION##", json.dumps(self.rtc_config))
             
             return HTMLResponse(content=html_content)
         
