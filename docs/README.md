@@ -83,4 +83,4 @@ When contributing to documentation:
 
 ---
 
-**Need help?** Check the main [README.md](../README.md) or open an issue on GitHub. 
+**Need help?** Check the main [README.md](../README.md) or open an issue on GitHub.

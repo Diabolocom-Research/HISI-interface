@@ -229,4 +229,4 @@ The refactoring successfully modernized the ASR Interface codebase, making it:
 - **Extensible**: Easy to add new features
 - **Open Source Ready**: Comprehensive documentation and tooling
 
-The codebase is now ready for open sourcing and community contribution while maintaining all existing functionality and improving the developer experience significantly. 
+The codebase is now ready for open sourcing and community contribution while maintaining all existing functionality and improving the developer experience significantly.

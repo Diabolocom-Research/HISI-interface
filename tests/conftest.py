@@ -1,10 +1,11 @@
 """Pytest configuration and common fixtures."""
 
-import pytest
 from pathlib import Path
 
-from asr_interface.core.store import ASRComponentsStore
+import pytest
+
 from asr_interface.core.config import ASRConfig
+from asr_interface.core.store import ASRComponentsStore
 
 
 @pytest.fixture
@@ -25,10 +26,7 @@ def asr_store() -> ASRComponentsStore:
 def sample_config() -> ASRConfig:
     """Create a sample ASR configuration for testing."""
     return ASRConfig(
-        model="tiny",
-        lan="en",
-        task="transcribe",
-        backend="whisper_timestamped"
+        model="tiny", lan="en", task="transcribe", backend="whisper_timestamped"
     )
 
 
@@ -37,4 +35,4 @@ def mock_audio_data() -> bytes:
     """Create mock audio data for testing."""
     # This would create realistic audio data
     # For now, return empty bytes
-    return b"mock_audio_data" 
+    return b"mock_audio_data"

@@ -177,23 +177,23 @@ from asr_interface.backends import ASRBase, OnlineASRProcessor
 
 class MyCustomASR(ASRBase):
     """Your custom ASR backend implementing ASRBase."""
-    
+
     def load_model(self, modelsize=None, cache_dir=None, model_dir=None):
         # Load your model
         pass
-    
+
     def transcribe(self, audio, init_prompt=""):
         # Transcribe audio and return result with segments
         pass
-    
+
     def ts_words(self, result):
         # Extract word-level timestamps
         pass
-    
+
     def segments_end_ts(self, result):
         # Extract segment end timestamps
         pass
-    
+
     def use_vad(self):
         # Enable VAD if supported
         pass
@@ -207,14 +207,14 @@ class MyCustomLoader(ModelLoader):
             cache_dir=config.model_cache_dir,
             model_dir=config.model_dir
         )
-        
+
         # Wrap with OnlineASRProcessor
         processor = OnlineASRProcessor(
             asr=asr_backend,
             buffer_trimming=(config.buffer_trimming, int(config.buffer_trimming_sec)),
             min_chunk_sec=config.min_chunk_size
         )
-        
+
         metadata = {"separator": asr_backend.sep, "model_type": "my_custom"}
         return processor, metadata
 
@@ -234,15 +234,15 @@ class MyCustomRealTimeEngine(ASRProcessor):
     def init(self, offset: float = 0.0):
         # Reset state for new stream
         pass
-    
+
     def insert_audio_chunk(self, audio: np.ndarray):
         # Add audio to buffer
         pass
-    
+
     def process_iter(self) -> Optional[Tuple[float, float, str]]:
         # Process buffer and return results
         pass
-    
+
     def finish(self) -> Optional[Tuple[float, float, str]]:
         # Process remaining audio
         pass

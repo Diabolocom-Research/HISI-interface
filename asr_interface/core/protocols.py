@@ -2,14 +2,15 @@
 
 import sys
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, Protocol, Tuple
+from typing import Any, Protocol
+
 from pydantic import BaseModel
 
 
 class ASRProcessor(Protocol):
     """
     A protocol defining the interface for a real-time ASR processor.
-    
+
     Any object that implements these methods can be used by the RealTimeASRHandler.
     """
 
@@ -17,12 +18,12 @@ class ASRProcessor(Protocol):
         """Insert an audio chunk for processing."""
         ...
 
-    def process_iter(self) -> Optional[Tuple[float, float, str]]:
+    def process_iter(self) -> tuple[float, float, str] | None:
         """
         Process the current audio buffer and return results if available.
-        
+
         Returns:
-            Optional[Tuple[float, float, str]]: A tuple of (start_time, end_time, text) 
+            Optional[Tuple[float, float, str]]: A tuple of (start_time, end_time, text)
             if a segment is ready, None otherwise.
         """
         ...
@@ -31,10 +32,10 @@ class ASRProcessor(Protocol):
         """Initialize the processor with an optional time offset."""
         ...
 
-    def finish(self) -> Optional[Tuple[float, float, str]]:
+    def finish(self) -> tuple[float, float, str] | None:
         """
         Finalize processing and return any remaining results.
-        
+
         Returns:
             Optional[Tuple[float, float, str]]: Final segment if available, None otherwise.
         """
@@ -50,7 +51,7 @@ class ModelLoader(Protocol):
     and any associated metadata.
     """
 
-    def load(self, config: BaseModel) -> Tuple[ASRProcessor, Dict[str, Any]]:
+    def load(self, config: BaseModel) -> tuple[ASRProcessor, dict[str, Any]]:
         """
         Loads a model and creates a processor.
 
@@ -62,7 +63,7 @@ class ModelLoader(Protocol):
                 - The initialized ASR processor instance.
                 - A dictionary of metadata (e.g., separator character).
         """
-        ... 
+        ...
 
 
 class ASRBase(ABC):
@@ -70,7 +71,7 @@ class ASRBase(ABC):
     Abstract Base Class for an Automatic Speech Recognition (ASR) backend.
 
     This class defines a standard interface that the OnlineASRProcessor can use
-    to interact with different ASR models. Any class inheriting from ASRBase must 
+    to interact with different ASR models. Any class inheriting from ASRBase must
     implement all its abstract methods.
 
     This is the same interface used by the legacy whisper-streaming system.
@@ -79,9 +80,17 @@ class ASRBase(ABC):
         sep (str): The separator character used to join recognized words.
                    This can vary by backend (e.g., " " for some, "" for others).
     """
+
     sep = " "  # Default separator
 
-    def __init__(self, lan: str, modelsize: str = None, cache_dir: str = None, model_dir: str = None, logfile=sys.stderr):
+    def __init__(
+        self,
+        lan: str,
+        modelsize: str = None,
+        cache_dir: str = None,
+        model_dir: str = None,
+        logfile=sys.stderr,
+    ):
         """
         Initializes the ASR backend.
 
@@ -98,7 +107,9 @@ class ASRBase(ABC):
         self.model = self.load_model(modelsize, cache_dir, model_dir)
 
     @abstractmethod
-    def load_model(self, modelsize: str = None, cache_dir: str = None, model_dir: str = None):
+    def load_model(
+        self, modelsize: str = None, cache_dir: str = None, model_dir: str = None
+    ):
         """
         Loads the ASR model into memory.
 
@@ -126,7 +137,7 @@ class ASRBase(ABC):
         raise NotImplementedError("must be implemented in the child class")
 
     @abstractmethod
-    def ts_words(self, transcription_result: Any) -> List[Tuple[float, float, str]]:
+    def ts_words(self, transcription_result: Any) -> list[tuple[float, float, str]]:
         """
         Parses the raw transcription result to extract word-level timestamps.
 
@@ -143,7 +154,7 @@ class ASRBase(ABC):
         raise NotImplementedError("must be implemented in the child class")
 
     @abstractmethod
-    def segments_end_ts(self, transcription_result: Any) -> List[float]:
+    def segments_end_ts(self, transcription_result: Any) -> list[float]:
         """
         Parses the raw transcription result to extract segment end timestamps.
 
@@ -164,4 +175,4 @@ class ASRBase(ABC):
         """
         Enables Voice Activity Detection (VAD) for the ASR model, if supported.
         """
-        raise NotImplementedError("must be implemented in the child class") 
+        raise NotImplementedError("must be implemented in the child class")

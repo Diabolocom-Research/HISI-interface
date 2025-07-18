@@ -26,12 +26,12 @@ wavesurfer = WaveSurfer.create({
 let scrollingWaveform = false;
 let continuousWaveform = true;
 
-let lastRecordedWaveSurfer = null; 
+let lastRecordedWaveSurfer = null;
 const playButton = document.getElementById('play-mic-recording-container');
 
 const recButton = document.querySelector('#start-button');
 const rectText = document.querySelector('.start-button-txt');
-const micImg = document.querySelector('.microphone-icon'); 
+const micImg = document.querySelector('.microphone-icon');
 
 const colors = [
     "rgba(186, 233, 255, 0.5)", // Light blue, semi-transparent
@@ -43,7 +43,7 @@ const colors = [
 let loop = false;
 let lastWaveformZoom = 100;
 let mousePosition = null;
-let zoomTimeout = null; 
+let zoomTimeout = null;
 
 // --- Utility Functions ---
 
@@ -53,7 +53,7 @@ let zoomTimeout = null;
  */
 const updateProgress = (time) => {
     const formattedTime = [
-        Math.floor((time % 3600000) / 60000), 
+        Math.floor((time % 3600000) / 60000),
         Math.floor((time % 60000) / 1000),
     ]
         .map((v) => (v < 10 ? '0' + v : v))
@@ -84,7 +84,7 @@ function onAudioProcess(currentTime) {
     });
     recordedRegions.on('region-out', (region) => {
         if (activeRegion === region) {
-            if (loop) { 
+            if (loop) {
                 region.play();
             } else {
                 activeRegion = null;
@@ -116,11 +116,11 @@ const createWaveSurfer = () => {
             renderRecordedAudio: false,
             scrollingWaveform,
             continuousWaveform,
-            continuousWaveformDuration: 30, 
+            continuousWaveformDuration: 30,
         }),
     );
 
-    window.wavesurfer = wavesurfer; 
+    window.wavesurfer = wavesurfer;
 
     // Event listener for when recording ends
     record.on('record-end', (blob) => {
@@ -138,7 +138,7 @@ const createWaveSurfer = () => {
             lastRecordedWaveSurfer.destroy();
         }
 
-        window.regions = recordedRegions; 
+        window.regions = recordedRegions;
 
         // Create new WaveSurfer instance for playing back the recorded audio
         lastRecordedWaveSurfer = WaveSurfer.create({
@@ -170,7 +170,7 @@ const createWaveSurfer = () => {
             }),
         );
 
-        window.lastRecordedWaveSurfer = lastRecordedWaveSurfer; 
+        window.lastRecordedWaveSurfer = lastRecordedWaveSurfer;
 
         // Event listener for when the recorded audio waveform is ready
         lastRecordedWaveSurfer.on('ready', () => {
@@ -287,7 +287,7 @@ recButton.onclick = () => {
 // Track mouse position on waveform for targeted zooming (debounced)
 document.getElementById('recordings').addEventListener('mousemove', (e) => {
     if (lastRecordedWaveSurfer && lastRecordedWaveSurfer.getDuration && lastRecordedWaveSurfer.getDuration() > 0) {
-        
+
         if (!mousePosition || Date.now() - (mousePosition.lastUpdate || 0) > 50) {
             const rect = e.currentTarget.getBoundingClientRect();
             const relativeX = (e.clientX - rect.left) / rect.width;
@@ -330,4 +330,4 @@ function attachZoomSync() {
 
 // --- Export and Global Exposure ---
 export { createWaveSurfer };
-window.createWaveSurfer = createWaveSurfer; 
+window.createWaveSurfer = createWaveSurfer;

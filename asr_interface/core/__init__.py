@@ -7,6 +7,6 @@ from .store import ASRComponentsStore
 __all__ = [
     "ASRConfig",
     "ASRProcessor",
-    "ModelLoader", 
+    "ModelLoader",
     "ASRComponentsStore",
-] 
+]

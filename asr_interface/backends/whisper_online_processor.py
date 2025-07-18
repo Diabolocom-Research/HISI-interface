@@ -2,8 +2,7 @@
 
 import logging
 import sys
-import time
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
 
@@ -18,7 +17,7 @@ SAMPLING_RATE = 16000
 class HypothesisBuffer:
     """
     A buffer for managing and stabilizing ASR output in real-time streaming.
-    
+
     This class handles the complex logic of:
     1. Managing overlapping predictions from consecutive ASR calls
     2. Stabilizing transcripts by finding common prefixes
@@ -31,7 +30,9 @@ class HypothesisBuffer:
         self.buffer = []  # stores the previous hypothesis from the ASR
         self.new = []  # holds the current incoming hypothesis
 
-        self.last_commited_time = 0  # The end timestamp of the last word that was committed
+        self.last_commited_time = (
+            0  # The end timestamp of the last word that was committed
+        )
         self.last_commited_word = None
 
         self.logfile = logfile
@@ -39,7 +40,7 @@ class HypothesisBuffer:
     def insert(self, new, offset):
         """
         Insert new hypothesis with timing offset.
-        
+
         The offset is the start time of the audio chunk that was processed.
         The ASR will give timestamps relative to this chunk (e.g., from 0.0 seconds).
         This converts those relative timestamps to absolute timestamps in the audio stream.
@@ -57,7 +58,11 @@ class HypothesisBuffer:
                     cn = len(self.commited_in_buffer)
                     nn = len(self.new)
                     for i in range(1, min(min(cn, nn), 5) + 1):  # 5 is the maximum
-                        c = " ".join([self.commited_in_buffer[-j][2] for j in range(1, i + 1)][::-1])
+                        c = " ".join(
+                            [self.commited_in_buffer[-j][2] for j in range(1, i + 1)][
+                                ::-1
+                            ]
+                        )
                         tail = " ".join(self.new[j - 1][2] for j in range(1, i + 1))
                         if c == tail:
                             words = []
@@ -114,13 +119,16 @@ class OnlineASRProcessor(ASRProcessor):
        and memory usage in long-running sessions.
     5. Handling errors and ASR failures gracefully.
     """
+
     SAMPLING_RATE = 16000
 
-    def __init__(self,
-                 asr: Any,  # ASR backend that conforms to the expected interface
-                 buffer_trimming: Tuple[str, int] = ("segment", 15),
-                 min_chunk_sec: float = 1.0,
-                 logfile=sys.stderr):
+    def __init__(
+        self,
+        asr: Any,  # ASR backend that conforms to the expected interface
+        buffer_trimming: tuple[str, int] = ("segment", 15),
+        min_chunk_sec: float = 1.0,
+        logfile=sys.stderr,
+    ):
         """
         Initialize the OnlineASRProcessor.
 
@@ -166,7 +174,7 @@ class OnlineASRProcessor(ASRProcessor):
         """Append a new chunk of audio to the internal buffer."""
         self.audio_buffer = np.append(self.audio_buffer, audio)
 
-    def process_iter(self) -> Tuple[Optional[float], Optional[float], str]:
+    def process_iter(self) -> tuple[float | None, float | None, str]:
         """
         Perform one complete iteration of the processing loop.
 
@@ -194,7 +202,7 @@ class OnlineASRProcessor(ASRProcessor):
         # Stage 5: Format and return the output.
         return self._format_output(committed_words)
 
-    def _transcribe_audio(self) -> Tuple[Any, bool]:
+    def _transcribe_audio(self) -> tuple[Any, bool]:
         """
         Transcribe the current audio buffer using the ASR backend.
 
@@ -204,19 +212,21 @@ class OnlineASRProcessor(ASRProcessor):
         try:
             # Get the current prompt from the transcript buffer
             prompt = self._get_prompt()
-            
+
             # Call the ASR backend
             result = self.asr.transcribe(self.audio_buffer, init_prompt=prompt)
-            
+
             self.consecutive_asr_failures = 0
             return result, True
-            
+
         except Exception as e:
             self.consecutive_asr_failures += 1
-            logger.warning(f"ASR transcription failed (attempt {self.consecutive_asr_failures}): {e}")
+            logger.warning(
+                f"ASR transcription failed (attempt {self.consecutive_asr_failures}): {e}"
+            )
             return None, False
 
-    def _stabilize_transcript(self, asr_result: Any) -> List[Tuple[float, float, str]]:
+    def _stabilize_transcript(self, asr_result: Any) -> list[tuple[float, float, str]]:
         """
         Stabilize the transcript using the hypothesis buffer.
 
@@ -231,13 +241,13 @@ class OnlineASRProcessor(ASRProcessor):
 
         # Extract word-level timestamps from the ASR result
         words = self.asr.ts_words(asr_result)
-        
+
         # Insert the new hypothesis into the buffer
         self.transcript_buffer.insert(words, self.buffer_time_offset)
-        
+
         # Flush the buffer to get committed words
         committed_words = self.transcript_buffer.flush()
-        
+
         return committed_words
 
     def _manage_audio_buffer(self, asr_result: Any, asr_success: bool):
@@ -258,14 +268,18 @@ class OnlineASRProcessor(ASRProcessor):
         try:
             # Get segment end timestamps from the ASR result
             segment_ends = self.asr.segments_end_ts(asr_result)
-            
-            if segment_ends and len(self.audio_buffer) / self.SAMPLING_RATE > self.buffer_trimming_sec:
+
+            if (
+                segment_ends
+                and len(self.audio_buffer) / self.SAMPLING_RATE
+                > self.buffer_trimming_sec
+            ):
                 # Find the latest segment end that's within our trimming threshold
                 for end_ts in reversed(segment_ends):
                     if end_ts <= self.buffer_trimming_sec:
                         self._chunk_at_timestamp(end_ts)
                         break
-                        
+
         except Exception as e:
             logger.warning(f"Failed to trim buffer by segment: {e}")
             # Fall back to simple trimming
@@ -276,14 +290,18 @@ class OnlineASRProcessor(ASRProcessor):
         Apply fallback buffer trimming when ASR-based trimming fails.
         """
         buffer_duration = len(self.audio_buffer) / self.SAMPLING_RATE
-        
+
         if buffer_duration > self.FALLBACK_TRIM_THRESHOLD_SEC:
             # Trim to keep only the last portion of the buffer
             trim_samples = int(self.FALLBACK_TRIM_THRESHOLD_SEC * self.SAMPLING_RATE)
             if len(self.audio_buffer) > trim_samples:
                 self.audio_buffer = self.audio_buffer[-trim_samples:]
-                self.buffer_time_offset += buffer_duration - self.FALLBACK_TRIM_THRESHOLD_SEC
-                logger.debug(f"Applied fallback buffer trimming, kept last {self.FALLBACK_TRIM_THRESHOLD_SEC}s")
+                self.buffer_time_offset += (
+                    buffer_duration - self.FALLBACK_TRIM_THRESHOLD_SEC
+                )
+                logger.debug(
+                    f"Applied fallback buffer trimming, kept last {self.FALLBACK_TRIM_THRESHOLD_SEC}s"
+                )
 
     def _chunk_at_timestamp(self, time: float):
         """
@@ -305,7 +323,9 @@ class OnlineASRProcessor(ASRProcessor):
             return " ".join(last_words)
         return ""
 
-    def _format_output(self, words: List[Tuple[float, float, str]]) -> Tuple[Optional[float], Optional[float], str]:
+    def _format_output(
+        self, words: list[tuple[float, float, str]]
+    ) -> tuple[float | None, float | None, str]:
         """
         Format the output from a list of word tuples.
 
@@ -327,7 +347,7 @@ class OnlineASRProcessor(ASRProcessor):
 
         return (start_time, end_time, text)
 
-    def finish(self) -> Tuple[Optional[float], Optional[float], str]:
+    def finish(self) -> tuple[float | None, float | None, str]:
         """
         Finalize processing and return any remaining results.
 
@@ -338,20 +358,20 @@ class OnlineASRProcessor(ASRProcessor):
             # Process any remaining audio
             asr_result, _ = self._transcribe_audio()
             final_words = self._stabilize_transcript(asr_result)
-            
+
             # Get any remaining uncommitted words
             remaining_words = self.transcript_buffer.complete()
             if remaining_words:
                 final_words.extend(remaining_words)
-            
+
             logger.debug(f"Final, uncommitted transcript: {final_words}")
             self.init()  # Reset for potential reuse.
             return self._format_output(final_words)
-        
+
         return (None, None, "")
 
 
-def asr_factory(config: ASRConfig) -> Tuple[Any, OnlineASRProcessor]:
+def asr_factory(config: ASRConfig) -> tuple[Any, OnlineASRProcessor]:
     """
     Create and configure ASR and OnlineASRProcessor instances.
 
@@ -368,43 +388,47 @@ def asr_factory(config: ASRConfig) -> Tuple[Any, OnlineASRProcessor]:
         ValueError: If an unsupported backend is specified.
         RuntimeError: If model loading fails.
     """
-    logger.info(f"Creating ASR factory for model '{config.model}' with backend '{config.backend}'...")
-    
+    logger.info(
+        f"Creating ASR factory for model '{config.model}' with backend '{config.backend}'..."
+    )
+
     # Import the appropriate backend based on configuration
     if config.backend == "whisper_timestamped":
-        from .whisper_timestamped_loader import WhisperTimestampedProcessor
         from .whisper_adapters import WhisperTimestampedAdapter
-        
+        from .whisper_timestamped_loader import WhisperTimestampedProcessor
+
         processor = WhisperTimestampedProcessor(
             model_size=config.model,
             language=config.lan,
-            min_chunk_sec=config.min_chunk_size
+            min_chunk_sec=config.min_chunk_size,
         )
         # Wrap the processor with the legacy-compatible adapter
         asr = WhisperTimestampedAdapter(processor, original_language=config.lan)
-        
+
     elif config.backend == "mlx-whisper":
         from .mlx_whisper_loader import MLXWhisperProcessor
         from .whisper_adapters import MLXWhisperAdapter
-        
+
         processor = MLXWhisperProcessor(
             model_size=config.model,
             language=config.lan,
-            min_chunk_sec=config.min_chunk_size
+            min_chunk_sec=config.min_chunk_size,
         )
         # Wrap the processor with the legacy-compatible adapter
         asr = MLXWhisperAdapter(processor, original_language=config.lan)
-        
+
     else:
-        raise ValueError(f"Unsupported ASR backend: '{config.backend}'. "
-                        f"Available backends are: whisper_timestamped, mlx-whisper")
+        raise ValueError(
+            f"Unsupported ASR backend: '{config.backend}'. "
+            f"Available backends are: whisper_timestamped, mlx-whisper"
+        )
 
     # Create the online processor that wraps the ASR backend
     online = OnlineASRProcessor(
         asr=asr,
         buffer_trimming=(config.buffer_trimming, int(config.buffer_trimming_sec)),
-        min_chunk_sec=config.min_chunk_size
+        min_chunk_sec=config.min_chunk_size,
     )
 
-    logger.info(f"ASR factory created successfully")
-    return asr, online 
+    logger.info("ASR factory created successfully")
+    return asr, online

@@ -1,11 +1,10 @@
 """MLX Whisper ASR backend implementation."""
 
 import logging
-import numpy as np
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from ..core.config import ASRConfig
-from ..core.protocols import ModelLoader, ASRProcessor, ASRBase
+from ..core.protocols import ASRBase, ASRProcessor, ModelLoader
 
 logger = logging.getLogger(__name__)
 
@@ -13,7 +12,7 @@ logger = logging.getLogger(__name__)
 class MLXWhisper(ASRBase):
     """
     MLX Whisper ASR backend implementation.
-    
+
     Uses MLX Whisper library as the backend, optimized for Apple Silicon.
     Models available: https://huggingface.co/collections/mlx-community/whisper-663256f9964fbb1177db93dc
     Significantly faster than faster-whisper (without CUDA) on Apple M1.
@@ -34,16 +33,19 @@ class MLXWhisper(ASRBase):
             model_dir (str, optional): Direct path to a custom model directory.
                 If specified, it overrides the `modelsize` parameter.
         """
-        from mlx_whisper.transcribe import ModelHolder, transcribe
         import mlx.core as mx  # Is installed with mlx-whisper
+        from mlx_whisper.transcribe import ModelHolder, transcribe
 
         if model_dir is not None:
-            logger.debug(f"Loading whisper model from model_dir {model_dir}. modelsize parameter is not used.")
+            logger.debug(
+                f"Loading whisper model from model_dir {model_dir}. modelsize parameter is not used."
+            )
             model_size_or_path = model_dir
         elif modelsize is not None:
             model_size_or_path = self.translate_model_name(modelsize)
             logger.debug(
-                f"Loading whisper model {modelsize}. You use mlx whisper, so {model_size_or_path} will be used.")
+                f"Loading whisper model {modelsize}. You use mlx whisper, so {model_size_or_path} will be used."
+            )
 
         self.model_size_or_path = model_size_or_path
 
@@ -52,8 +54,12 @@ class MLXWhisper(ASRBase):
         # - Only one model can be loaded at a time; switching models requires reloading.
         # - This approach may not be suitable for scenarios requiring multiple models simultaneously,
         #   such as using whisper-streaming as a module with varying model sizes.
-        dtype = mx.float16  # Default to mx.float16. In mlx_whisper.transcribe: dtype = mx.float16 if decode_options.get("fp16", True) else mx.float32
-        ModelHolder.get_model(model_size_or_path, dtype)  # Model is preloaded to avoid reloading during transcription
+        dtype = (
+            mx.float16
+        )  # Default to mx.float16. In mlx_whisper.transcribe: dtype = mx.float16 if decode_options.get("fp16", True) else mx.float32
+        ModelHolder.get_model(
+            model_size_or_path, dtype
+        )  # Model is preloaded to avoid reloading during transcription
 
         return transcribe
 
@@ -87,7 +93,10 @@ class MLXWhisper(ASRBase):
 
     def transcribe(self, audio, init_prompt=""):
         from mlx_whisper.transcribe import transcribe
-        result = transcribe(self.model, audio, initial_prompt=init_prompt, **self.transcribe_kargs)
+
+        result = transcribe(
+            self.model, audio, initial_prompt=init_prompt, **self.transcribe_kargs
+        )
         return result
 
     def ts_words(self, segments):
@@ -109,13 +118,13 @@ class MLXWhisper(ASRBase):
 class MLXWhisperLoader(ModelLoader):
     """
     Loads MLX Whisper models optimized for Apple Silicon.
-    
+
     This loader creates ASR processors based on the MLX Whisper model family,
     which provides significantly faster performance on Apple M1/M2 chips compared
     to other Whisper implementations.
     """
 
-    def load(self, config: ASRConfig) -> Tuple[ASRProcessor, Dict[str, Any]]:
+    def load(self, config: ASRConfig) -> tuple[ASRProcessor, dict[str, Any]]:
         """
         Implement the loading logic for MLX Whisper models.
 
@@ -135,21 +144,24 @@ class MLXWhisperLoader(ModelLoader):
         try:
             # Create the ASR backend
             from .whisper_online_processor import OnlineASRProcessor
-            
+
             asr_backend = MLXWhisper(
                 lan=config.lan,
                 modelsize=config.model,
                 cache_dir=config.model_cache_dir,
-                model_dir=config.model_dir
+                model_dir=config.model_dir,
             )
 
             # Create the OnlineASRProcessor that wraps the backend
             processor = OnlineASRProcessor(
                 asr=asr_backend,
-                buffer_trimming=(config.buffer_trimming, int(config.buffer_trimming_sec)),
-                min_chunk_sec=config.min_chunk_size
+                buffer_trimming=(
+                    config.buffer_trimming,
+                    int(config.buffer_trimming_sec),
+                ),
+                min_chunk_sec=config.min_chunk_size,
             )
-            
+
             logger.info(f"Loaded MLX Whisper model: {config.model}")
 
             # Define metadata for the MLX Whisper backend
@@ -162,9 +174,11 @@ class MLXWhisperLoader(ModelLoader):
                 "optimized_for": "apple_silicon",
             }
 
-            logger.info(f"MLX Whisper processor created successfully with model: {config.model}")
+            logger.info(
+                f"MLX Whisper processor created successfully with model: {config.model}"
+            )
             return processor, metadata
 
         except Exception as e:
             logger.error(f"Failed to load MLX Whisper model: {e}", exc_info=True)
-            raise RuntimeError(f"Failed to load MLX Whisper model: {e}") from e 
+            raise RuntimeError(f"Failed to load MLX Whisper model: {e}") from e

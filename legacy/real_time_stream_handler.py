@@ -1,11 +1,9 @@
 import logging
+from typing import Any
+
 import librosa
 import numpy as np
-
-from typing import Optional
-
-from fastrtc import  StreamHandler, AdditionalOutputs
-from typing import Any, Dict, List, Optional, Tuple
+from fastrtc import AdditionalOutputs, StreamHandler
 
 
 class RealTimeASRHandler(StreamHandler):
@@ -22,15 +20,15 @@ class RealTimeASRHandler(StreamHandler):
     """
 
     # --- Type-hinted class attributes for clarity ---
-    store: Dict[str, Any]
+    store: dict[str, Any]
     asr_processor: Any
     full_audio: np.ndarray
     accumulated_transcript: str
-    segments: List[Dict[str, Any]]
-    last_used_config_id: Optional[str]
+    segments: list[dict[str, Any]]
+    last_used_config_id: str | None
     handler_id: int
 
-    def __init__(self, shared_store: Dict[str, Any], **kwargs: Any) -> None:
+    def __init__(self, shared_store: dict[str, Any], **kwargs: Any) -> None:
         """
         Initializes the handler instance for a new connection.
 
@@ -40,7 +38,9 @@ class RealTimeASRHandler(StreamHandler):
                                            including the ASR processor.
         """
         # Determine the sample rate to be used by the StreamHandler base class.
-        rate_to_use = kwargs.pop('input_sample_rate', shared_store.get("sample_rate", 16000))
+        rate_to_use = kwargs.pop(
+            "input_sample_rate", shared_store.get("sample_rate", 16000)
+        )
         super().__init__(input_sample_rate=rate_to_use, **kwargs)
 
         # A reference to the shared application state.
@@ -62,7 +62,9 @@ class RealTimeASRHandler(StreamHandler):
         # Unique identifier for this handler instance for clear logging.
         self.handler_id = id(self)
 
-        logging.info(f"Handler instance [{self.handler_id}] created. Waiting for processor.")
+        logging.info(
+            f"Handler instance [{self.handler_id}] created. Waiting for processor."
+        )
         self._ensure_processor()
 
     def _ensure_processor(self) -> None:
@@ -74,18 +76,25 @@ class RealTimeASRHandler(StreamHandler):
         is currently using and updates it if necessary.
         """
         # If we already have the correct processor, do nothing.
-        is_already_set = self.asr_processor and self.last_used_config_id == self.store.get("current_config_id")
+        is_already_set = (
+            self.asr_processor
+            and self.last_used_config_id == self.store.get("current_config_id")
+        )
         if is_already_set:
             return
 
         # If the shared store has a ready processor, acquire it.
         if self.store.get("is_ready") and self.store.get("asr_processor"):
             config_id = self.store.get("current_config_id", "unknown")
-            logging.info(f"Handler [{self.handler_id}] - Acquiring new ASR processor for config '{config_id}'.")
+            logging.info(
+                f"Handler [{self.handler_id}] - Acquiring new ASR processor for config '{config_id}'."
+            )
             self.asr_processor = self.store["asr_processor"]
             self.last_used_config_id = config_id
             self._reset_instance_state()
-            logging.info(f"Handler [{self.handler_id}] - Processor acquired successfully.")
+            logging.info(
+                f"Handler [{self.handler_id}] - Processor acquired successfully."
+            )
         else:
             # If no processor is ready, ensure we don't hold onto an old one.
             self.asr_processor = None
@@ -97,7 +106,7 @@ class RealTimeASRHandler(StreamHandler):
         self.segments = []
         self.full_audio = np.zeros((0,), dtype=np.float32)
 
-    def receive(self, frame: Tuple[int, np.ndarray]) -> None:
+    def receive(self, frame: tuple[int, np.ndarray]) -> None:
         """
         Processes an incoming audio frame from the WebRTC stream.
 
@@ -119,7 +128,9 @@ class RealTimeASRHandler(StreamHandler):
         # Resample if the incoming audio's sample rate differs from the target.
         target_sr = self.store.get("sample_rate", 16000)
         if sample_rate != target_sr:
-            audio_float32 = librosa.resample(audio_float32, orig_sr=sample_rate, target_sr=target_sr)
+            audio_float32 = librosa.resample(
+                audio_float32, orig_sr=sample_rate, target_sr=target_sr
+            )
 
         self.asr_processor.insert_audio_chunk(audio_float32.flatten())
 
@@ -138,7 +149,9 @@ class RealTimeASRHandler(StreamHandler):
         processed_output = self.asr_processor.process_iter()
         if processed_output is None:
             # No new segment, just return the current state.
-            return AdditionalOutputs(self.accumulated_transcript, self.full_audio, self.segments)
+            return AdditionalOutputs(
+                self.accumulated_transcript, self.full_audio, self.segments
+            )
 
         beg, end, text_delta = processed_output
         if text_delta:
@@ -151,15 +164,19 @@ class RealTimeASRHandler(StreamHandler):
             elif text_delta.strip():
                 self.accumulated_transcript = text_delta.strip()
 
-        return AdditionalOutputs(self.accumulated_transcript, self.full_audio, self.segments)
+        return AdditionalOutputs(
+            self.accumulated_transcript, self.full_audio, self.segments
+        )
 
-    def copy(self) -> 'RealTimeASRHandler':
+    def copy(self) -> "RealTimeASRHandler":
         """
         Creates a new instance of the handler for a new client connection.
 
         This is a factory method required by the fastRTC `Stream` object.
         """
-        logging.info(f"RealTimeASRHandler.copy() called for master handler [{self.handler_id}].")
+        logging.info(
+            f"RealTimeASRHandler.copy() called for master handler [{self.handler_id}]."
+        )
         return RealTimeASRHandler(self.store)
 
     def shutdown(self) -> None:

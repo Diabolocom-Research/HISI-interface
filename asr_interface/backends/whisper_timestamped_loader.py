@@ -1,11 +1,10 @@
 """Whisper Timestamped ASR backend implementation."""
 
 import logging
-import numpy as np
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from ..core.config import ASRConfig
-from ..core.protocols import ModelLoader, ASRProcessor, ASRBase
+from ..core.protocols import ASRBase, ASRProcessor, ModelLoader
 
 logger = logging.getLogger(__name__)
 
@@ -13,7 +12,7 @@ logger = logging.getLogger(__name__)
 class WhisperTimestampedASR(ASRBase):
     """
     Whisper Timestamped ASR backend implementation.
-    
+
     Uses whisper_timestamped library as the backend.
     """
 
@@ -22,16 +21,22 @@ class WhisperTimestampedASR(ASRBase):
     def load_model(self, modelsize=None, cache_dir=None, model_dir=None):
         import whisper
         from whisper_timestamped import transcribe_timestamped
+
         self.transcribe_timestamped = transcribe_timestamped
         if model_dir is not None:
             logger.debug("ignoring model_dir, not implemented")
         return whisper.load_model(modelsize, download_root=cache_dir)
 
     def transcribe(self, audio, init_prompt=""):
-        result = self.transcribe_timestamped(self.model,
-                                             audio, language=self.original_language,
-                                             initial_prompt=init_prompt, verbose=None,
-                                             condition_on_previous_text=True, **self.transcribe_kargs)
+        result = self.transcribe_timestamped(
+            self.model,
+            audio,
+            language=self.original_language,
+            initial_prompt=init_prompt,
+            verbose=None,
+            condition_on_previous_text=True,
+            **self.transcribe_kargs,
+        )
         return result
 
     def ts_words(self, r):
@@ -53,12 +58,12 @@ class WhisperTimestampedASR(ASRBase):
 class WhisperTimestampedLoader(ModelLoader):
     """
     Loads Whisper Timestamped models for real-time ASR.
-    
+
     This loader creates ASR backends based on the Whisper Timestamped library,
     which provides word-level timestamps for accurate real-time transcription.
     """
 
-    def load(self, config: ASRConfig) -> Tuple[ASRProcessor, Dict[str, Any]]:
+    def load(self, config: ASRConfig) -> tuple[ASRProcessor, dict[str, Any]]:
         """
         Implement the loading logic for Whisper Timestamped models.
 
@@ -78,19 +83,22 @@ class WhisperTimestampedLoader(ModelLoader):
         try:
             # Create the ASR backend
             from .whisper_online_processor import OnlineASRProcessor
-            
+
             asr_backend = WhisperTimestampedASR(
                 lan=config.lan,
                 modelsize=config.model,
                 cache_dir=config.model_cache_dir,
-                model_dir=config.model_dir
+                model_dir=config.model_dir,
             )
 
             # Create the OnlineASRProcessor that wraps the backend
             processor = OnlineASRProcessor(
                 asr=asr_backend,
-                buffer_trimming=(config.buffer_trimming, int(config.buffer_trimming_sec)),
-                min_chunk_sec=config.min_chunk_size
+                buffer_trimming=(
+                    config.buffer_trimming,
+                    int(config.buffer_trimming_sec),
+                ),
+                min_chunk_sec=config.min_chunk_size,
             )
 
             metadata = {
@@ -103,5 +111,7 @@ class WhisperTimestampedLoader(ModelLoader):
             return processor, metadata
 
         except Exception as e:
-            logger.error(f"Failed to load Whisper Timestamped model: {e}", exc_info=True)
-            raise RuntimeError(f"Failed to load Whisper Timestamped model: {e}") from e 
+            logger.error(
+                f"Failed to load Whisper Timestamped model: {e}", exc_info=True
+            )
+            raise RuntimeError(f"Failed to load Whisper Timestamped model: {e}") from e

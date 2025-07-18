@@ -82,32 +82,32 @@ from asr_interface.core.protocols import ASRBase
 class MyCustomASR(ASRBase):
     """
     Your custom ASR backend implementation.
-    
+
     This example shows how to integrate a hypothetical ASR model.
     Replace the placeholder methods with your actual model logic.
     """
-    
+
     sep = " "  # Word separator for your model
 
     def load_model(self, modelsize=None, cache_dir=None, model_dir=None):
         """
         Load your custom ASR model.
-        
+
         Args:
             modelsize: Model size identifier (e.g., "tiny", "base", "large")
             cache_dir: Directory for caching models
             model_dir: Path to pre-downloaded model directory
         """
         print(f"Loading custom model: {modelsize}")
-        
+
         # Example: Load from Hugging Face
         # from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor
         # self.model = AutoModelForSpeechSeq2Seq.from_pretrained(modelsize)
         # self.processor = AutoProcessor.from_pretrained(modelsize)
-        
+
         # Example: Load from local files
         # self.model = torch.load(f"{model_dir}/model.pth")
-        
+
         # For this example, we'll just store the model size
         self.model_size = modelsize
         return self.model_size
@@ -115,11 +115,11 @@ class MyCustomASR(ASRBase):
     def transcribe(self, audio, init_prompt=""):
         """
         Transcribe audio using your model.
-        
+
         Args:
             audio: Audio data as numpy array (16kHz, float32)
             init_prompt: Initial prompt for the model
-            
+
         Returns:
             dict: Must contain "segments" key with list of segment objects
         """
@@ -128,7 +128,7 @@ class MyCustomASR(ASRBase):
         # with torch.no_grad():
         #     generated_ids = self.model.generate(**inputs)
         # transcription = self.processor.batch_decode(generated_ids, skip_special_tokens=True)[0]
-        
+
         # For this example, return a mock result
         # In practice, replace this with your actual transcription logic
         mock_result = {
@@ -156,16 +156,16 @@ class MyCustomASR(ASRBase):
             ],
             "language": self.original_language or "en"
         }
-        
+
         return mock_result
-    
+
     def ts_words(self, transcription_result):
         """
         Extract word-level timestamps from transcription result.
-        
+
         Args:
             transcription_result: Result from transcribe() method
-            
+
         Returns:
             List[Tuple[float, float, str]]: List of (start_time, end_time, word) tuples
         """
@@ -178,14 +178,14 @@ class MyCustomASR(ASRBase):
                     word.get("text", "")
                 ))
         return words
-    
+
     def segments_end_ts(self, transcription_result):
         """
         Extract segment end timestamps from transcription result.
-        
+
         Args:
             transcription_result: Result from transcribe() method
-            
+
         Returns:
             List[float]: List of segment end timestamps
         """
@@ -209,14 +209,14 @@ class MyCustomASRLoader(ModelLoader):
     """
     Loads your custom ASR backend and wraps it in the OnlineASRProcessor.
     """
-    
+
     def load(self, config: ASRConfig) -> tuple[ASRProcessor, dict]:
         """
         Create and return your custom ASR processor.
-        
+
         Args:
             config: Configuration containing model parameters
-            
+
         Returns:
             Tuple of (processor, metadata)
         """
@@ -303,37 +303,37 @@ from asr_interface.core.protocols import ASRProcessor
 class MyCustomRealTimeEngine(ASRProcessor):
     """
     Complete custom real-time ASR engine.
-    
+
     This example shows how to implement a custom real-time processor
     from scratch. Replace the placeholder logic with your actual implementation.
     """
-    
+
     def __init__(self, model_path: str, language: str, min_chunk_sec: float = 1.0):
         """
         Initialize your custom engine.
-        
+
         Args:
             model_path: Path to your model
             language: Language code
             min_chunk_sec: Minimum chunk size in seconds
         """
         print(f"Initializing MyCustomRealTimeEngine with model: {model_path}")
-        
+
         # Load your model
         self.model = self._load_model(model_path)
         self.language = language
         self.min_chunk_sec = min_chunk_sec
         self.sampling_rate = 16000
-        
+
         # Internal state
         self._audio_buffer = np.array([], dtype=np.float32)
         self._offset = 0.0
         self._last_processed_time = 0.0
-        
+
     def init(self, offset: float = 0.0):
         """
         Reset state for a new audio stream.
-        
+
         Args:
             offset: Time offset for the new stream
         """
@@ -345,7 +345,7 @@ class MyCustomRealTimeEngine(ASRProcessor):
     def insert_audio_chunk(self, audio: np.ndarray):
         """
         Add incoming audio to the buffer.
-        
+
         Args:
             audio: Audio chunk as numpy array
         """
@@ -354,7 +354,7 @@ class MyCustomRealTimeEngine(ASRProcessor):
     def process_iter(self) -> Optional[Tuple[float, float, str]]:
         """
         Process the audio buffer and return results if available.
-        
+
         Returns:
             Optional[Tuple[float, float, str]]: (start_time, end_time, text) if ready, None otherwise
         """
@@ -362,30 +362,30 @@ class MyCustomRealTimeEngine(ASRProcessor):
         buffer_duration = len(self._audio_buffer) / self.sampling_rate
         if buffer_duration < self.min_chunk_sec:
             return None
-        
+
         # Example: Process when we have enough audio
         # In practice, you might use VAD, silence detection, or other criteria
         if self._should_process_buffer():
             # Transcribe the current buffer
             transcript = self._transcribe_buffer()
-            
+
             if transcript:
                 # Calculate timing
                 start_time = self._last_processed_time
                 end_time = start_time + buffer_duration
-                
+
                 # Clear the buffer
                 self._audio_buffer = np.array([], dtype=np.float32)
                 self._last_processed_time = end_time
-                
+
                 return (start_time, end_time, transcript)
-        
+
         return None
 
     def finish(self) -> Optional[Tuple[float, float, str]]:
         """
         Process any remaining audio at the end of the stream.
-        
+
         Returns:
             Optional[Tuple[float, float, str]]: Final segment if available
         """
@@ -397,14 +397,14 @@ class MyCustomRealTimeEngine(ASRProcessor):
                 end_time = start_time + len(self._audio_buffer) / self.sampling_rate
                 return (start_time, end_time, transcript)
         return None
-    
+
     def _load_model(self, model_path: str):
         """
         Load your ASR model.
-        
+
         Args:
             model_path: Path to your model
-            
+
         Returns:
             Loaded model object
         """
@@ -412,22 +412,22 @@ class MyCustomRealTimeEngine(ASRProcessor):
         # return torch.load(model_path)
         # return AutoModel.from_pretrained(model_path)
         return model_path  # Placeholder
-    
+
     def _should_process_buffer(self) -> bool:
         """
         Decide whether to process the current buffer.
-        
+
         Returns:
             bool: True if buffer should be processed
         """
         # Example: Process every 2 seconds
         buffer_duration = len(self._audio_buffer) / self.sampling_rate
         return buffer_duration >= 2.0
-    
+
     def _transcribe_buffer(self) -> Optional[str]:
         """
         Transcribe the current audio buffer.
-        
+
         Returns:
             Optional[str]: Transcription text or None
         """
@@ -435,7 +435,7 @@ class MyCustomRealTimeEngine(ASRProcessor):
         # In practice, call your actual model
         # result = self.model.transcribe(self._audio_buffer)
         # return result.text
-        
+
         # Placeholder: return mock text
         return "Mock transcription from custom engine"
 ```
@@ -451,14 +451,14 @@ class MyEngineLoader(ModelLoader):
     """
     Factory for creating instances of MyCustomRealTimeEngine.
     """
-    
+
     def load(self, config: ASRConfig) -> tuple[ASRProcessor, dict]:
         """
         Create and return your custom real-time engine.
-        
+
         Args:
             config: Configuration containing model parameters
-            
+
         Returns:
             Tuple of (processor, metadata)
         """
@@ -518,23 +518,23 @@ from asr_interface.core.config import ASRConfig
 # Test your ASR backend (Path 1)
 def test_my_custom_asr():
     from .my_custom_asr import MyCustomASR
-    
+
     # Test initialization
     asr = MyCustomASR("en", "tiny")
     assert asr.original_language == "en"
-    
+
     # Test transcription
     audio = np.random.randn(16000)  # 1 second of audio
     result = asr.transcribe(audio)
     assert "segments" in result
     assert "text" in result
-    
+
     # Test word extraction
     words = asr.ts_words(result)
     assert isinstance(words, list)
     if words:
         assert len(words[0]) == 3  # (start, end, word)
-    
+
     # Test segment extraction
     segments = asr.segments_end_ts(result)
     assert isinstance(segments, list)
@@ -542,14 +542,14 @@ def test_my_custom_asr():
 # Test your model loader
 def test_my_model_loader():
     from .my_model_loader import MyCustomASRLoader
-    
+
     loader = MyCustomASRLoader()
     config = ASRConfig(
         model="tiny",
         lan="en",
         backend="my_custom_backend"
     )
-    
+
     processor, metadata = loader.load(config)
     assert processor is not None
     assert "separator" in metadata
@@ -558,14 +558,14 @@ def test_my_model_loader():
 # Test your custom engine (Path 2)
 def test_my_custom_engine():
     from .my_custom_engine import MyCustomRealTimeEngine
-    
+
     engine = MyCustomRealTimeEngine("/path/to/model", "en")
     engine.init()
-    
+
     # Test audio insertion
     audio = np.random.randn(16000)
     engine.insert_audio_chunk(audio)
-    
+
     # Test processing
     result = engine.process_iter()
     # Assert based on your expected behavior
@@ -583,7 +583,7 @@ from fastapi.testclient import TestClient
 def test_custom_backend_integration():
     app = create_app()
     client = TestClient(app)
-    
+
     # Test model loading
     response = client.post("/load_model", json={
         "backend": "my_custom_backend",
@@ -591,7 +591,7 @@ def test_custom_backend_integration():
         "lan": "en"
     })
     assert response.status_code == 200
-    
+
     # Test transcription
     # Add more integration tests as needed
 ```
@@ -689,23 +689,23 @@ from asr_interface.core.protocols import ASRBase
 
 class MyASRBackend(ASRBase):
     sep = " "
-    
+
     def load_model(self, modelsize=None, cache_dir=None, model_dir=None):
         # Load your model
         pass
-    
+
     def transcribe(self, audio, init_prompt=""):
         # Transcribe audio
         pass
-    
+
     def ts_words(self, result):
         # Extract word timestamps
         pass
-    
+
     def segments_end_ts(self, result):
         # Extract segment timestamps
         pass
-    
+
     def use_vad(self):
         # Enable VAD
         pass
@@ -719,19 +719,19 @@ class MyCustomProcessor(ASRProcessor):
     def __init__(self, model_path, language):
         # Initialize
         pass
-    
+
     def init(self, offset=0.0):
         # Reset state
         pass
-    
+
     def insert_audio_chunk(self, audio):
         # Add audio
         pass
-    
+
     def process_iter(self):
         # Process buffer
         pass
-    
+
     def finish(self):
         # Finalize
         pass
@@ -746,4 +746,4 @@ class MyCustomProcessor(ASRProcessor):
 - 💬 **Discussions**: Ask questions in GitHub Discussions
 - 🔧 **Examples**: Look at existing backends for reference
 
-The ASR Interface is designed to be modular and extensible. With this guide, you should be able to integrate any ASR model or engine quickly and efficiently! 
+The ASR Interface is designed to be modular and extensible. With this guide, you should be able to integrate any ASR model or engine quickly and efficiently!

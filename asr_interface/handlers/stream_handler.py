@@ -1,14 +1,14 @@
 """Real-time ASR stream handler for WebRTC audio processing."""
 
 import logging
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import librosa
 import numpy as np
-from fastrtc import StreamHandler, AdditionalOutputs
+from fastrtc import AdditionalOutputs, StreamHandler
 
-from ..core.store import ASRComponentsStore
 from ..core.protocols import ASRProcessor
+from ..core.store import ASRComponentsStore
 
 logger = logging.getLogger(__name__)
 
@@ -35,29 +35,31 @@ class RealTimeASRHandler(StreamHandler):
             **kwargs: Additional arguments passed to StreamHandler
         """
         # Determine the sample rate to be used by the StreamHandler base class
-        rate_to_use = kwargs.pop('input_sample_rate', store.sample_rate)
+        rate_to_use = kwargs.pop("input_sample_rate", store.sample_rate)
         super().__init__(input_sample_rate=rate_to_use, **kwargs)
 
         # Reference to the shared application state
         self.store = store
 
         # Local instance of the ASR processor, pulled from the store
-        self.asr_processor: Optional[ASRProcessor] = None
+        self.asr_processor: ASRProcessor | None = None
 
         # Per-connection state for managing transcription results
         self.accumulated_transcript = ""
-        self.segments: List[Dict[str, Any]] = []
+        self.segments: list[dict[str, Any]] = []
 
         # State for managing audio buffering (optional, for potential future use like playback)
         self.full_audio = np.zeros((0,), dtype=np.float32)
 
         # State to track the configuration version and prevent re-initialization
-        self.last_used_config_id: Optional[str] = None
+        self.last_used_config_id: str | None = None
 
         # Unique identifier for this handler instance for clear logging
         self.handler_id = id(self)
 
-        logger.info(f"Handler instance [{self.handler_id}] created. Waiting for processor.")
+        logger.info(
+            f"Handler instance [{self.handler_id}] created. Waiting for processor."
+        )
         self._ensure_processor()
 
     def _ensure_processor(self) -> None:
@@ -70,7 +72,7 @@ class RealTimeASRHandler(StreamHandler):
         """
         # If we already have the correct processor, do nothing
         is_already_set = (
-            self.asr_processor 
+            self.asr_processor
             and self.last_used_config_id == self.store.current_config_id
         )
         if is_already_set:
@@ -85,7 +87,9 @@ class RealTimeASRHandler(StreamHandler):
             self.asr_processor = self.store.asr_processor
             self.last_used_config_id = config_id
             self._reset_instance_state()
-            logger.info(f"Handler [{self.handler_id}] - Processor acquired successfully.")
+            logger.info(
+                f"Handler [{self.handler_id}] - Processor acquired successfully."
+            )
         else:
             # If no processor is ready, ensure we don't hold onto an old one
             self.asr_processor = None
@@ -97,7 +101,7 @@ class RealTimeASRHandler(StreamHandler):
         self.segments = []
         self.full_audio = np.zeros((0,), dtype=np.float32)
 
-    def receive(self, frame: Tuple[int, np.ndarray]) -> None:
+    def receive(self, frame: tuple[int, np.ndarray]) -> None:
         """
         Process an incoming audio frame from the WebRTC stream.
 
@@ -159,7 +163,7 @@ class RealTimeASRHandler(StreamHandler):
             self.accumulated_transcript, self.full_audio, self.segments
         )
 
-    def copy(self) -> 'RealTimeASRHandler':
+    def copy(self) -> "RealTimeASRHandler":
         """
         Create a new instance of the handler for a new client connection.
 
@@ -168,10 +172,12 @@ class RealTimeASRHandler(StreamHandler):
         Returns:
             A new RealTimeASRHandler instance
         """
-        logger.info(f"RealTimeASRHandler.copy() called for master handler [{self.handler_id}].")
+        logger.info(
+            f"RealTimeASRHandler.copy() called for master handler [{self.handler_id}]."
+        )
         return RealTimeASRHandler(self.store)
 
     def shutdown(self) -> None:
         """Clean up resources when a client connection is closed."""
         logger.info(f"Handler [{self.handler_id}] shutting down.")
-        self.asr_processor = None 
+        self.asr_processor = None

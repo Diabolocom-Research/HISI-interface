@@ -5,16 +5,15 @@ providers (Hugging Face, Twilio, Cloudflare) for WebRTC connections.
 """
 
 import os
-from typing import Literal, Optional, Dict, Any
-import requests
+from typing import Any, Literal
 
+import requests
 from fastrtc import get_hf_turn_credentials, get_twilio_turn_credentials
 
 
 def get_rtc_credentials(
-        provider: Literal["hf", "twilio", "cloudflare"] = "hf",
-        **kwargs
-) -> Dict[str, Any]:
+    provider: Literal["hf", "twilio", "cloudflare"] = "hf", **kwargs
+) -> dict[str, Any]:
     """
     Get RTC configuration for different TURN server providers.
 
@@ -41,7 +40,7 @@ def get_rtc_credentials(
         raise Exception(f"Failed to get RTC credentials ({provider}): {str(e)}")
 
 
-def get_hf_credentials(token: Optional[str] = None) -> Dict[str, Any]:
+def get_hf_credentials(token: str | None = None) -> dict[str, Any]:
     """
     Get credentials for Hugging Face's community TURN server.
 
@@ -71,9 +70,8 @@ def get_hf_credentials(token: Optional[str] = None) -> Dict[str, Any]:
 
 
 def get_twilio_credentials(
-        account_sid: Optional[str] = None,
-        auth_token: Optional[str] = None
-) -> Dict[str, Any]:
+    account_sid: str | None = None, auth_token: str | None = None
+) -> dict[str, Any]:
     """
     Get credentials for Twilio's TURN server.
 
@@ -99,19 +97,21 @@ def get_twilio_credentials(
     auth_token = auth_token or os.environ.get("TWILIO_AUTH_TOKEN")
 
     if not account_sid or not auth_token:
-        raise ValueError("Twilio credentials not found. Set TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN env vars")
+        raise ValueError(
+            "Twilio credentials not found. Set TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN env vars"
+        )
 
     try:
-        return get_twilio_turn_credentials(account_sid=account_sid, auth_token=auth_token)
+        return get_twilio_turn_credentials(
+            account_sid=account_sid, auth_token=auth_token
+        )
     except Exception as e:
         raise Exception(f"Failed to get Twilio TURN credentials: {str(e)}")
 
 
 def get_cloudflare_credentials(
-        key_id: Optional[str] = None,
-        api_token: Optional[str] = None,
-        ttl: int = 86400
-) -> Dict[str, Any]:
+    key_id: str | None = None, api_token: str | None = None, ttl: int = 86400
+) -> dict[str, Any]:
     """
     Get credentials for Cloudflare's TURN server.
 
@@ -139,7 +139,9 @@ def get_cloudflare_credentials(
     api_token = api_token or os.environ.get("TURN_KEY_API_TOKEN")
 
     if not key_id or not api_token:
-        raise ValueError("Cloudflare credentials not found. Set TURN_KEY_ID and TURN_KEY_API_TOKEN env vars")
+        raise ValueError(
+            "Cloudflare credentials not found. Set TURN_KEY_ID and TURN_KEY_API_TOKEN env vars"
+        )
 
     response = requests.post(
         f"https://rtc.live.cloudflare.com/v1/turn/keys/{key_id}/credentials/generate",
@@ -159,4 +161,9 @@ def get_cloudflare_credentials(
 
 
 # Export the main function for easy access
-__all__ = ["get_rtc_credentials", "get_hf_credentials", "get_twilio_credentials", "get_cloudflare_credentials"]
+__all__ = [
+    "get_rtc_credentials",
+    "get_hf_credentials",
+    "get_twilio_credentials",
+    "get_cloudflare_credentials",
+]

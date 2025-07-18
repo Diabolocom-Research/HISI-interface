@@ -1,6 +1,6 @@
-from typing import Protocol
+from typing import Any, Protocol
+
 from pydantic import BaseModel
-from typing import Any, Dict, Optional, Tuple
 
 
 class ASRProcessor(Protocol):
@@ -9,11 +9,9 @@ class ASRProcessor(Protocol):
     Any object that implements these methods can be used by the RealTimeASRHandler.
     """
 
-    def insert_audio_chunk(self, audio_chunk: Any) -> None:
-        ...
+    def insert_audio_chunk(self, audio_chunk: Any) -> None: ...
 
-    def process_iter(self) -> Optional[Tuple[float, float, str]]:
-        ...
+    def process_iter(self) -> tuple[float, float, str] | None: ...
 
 
 class ModelLoader(Protocol):
@@ -25,7 +23,7 @@ class ModelLoader(Protocol):
     and any associated metadata.
     """
 
-    def load(self, config: BaseModel) -> Tuple[ASRProcessor, Dict[str, Any]]:
+    def load(self, config: BaseModel) -> tuple[ASRProcessor, dict[str, Any]]:
         """
         Loads a model and creates a processor.
 
