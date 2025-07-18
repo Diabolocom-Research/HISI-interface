@@ -4,21 +4,22 @@ This guide explains how to integrate your own Automatic Speech Recognition (ASR)
 
 ## Architectural Overview
 
-The ASR Interface uses a modular, protocol-oriented design with three key components:
+The ASR Interface uses a modular architecture based on the legacy whisper-streaming system with three key components:
 
-1. **`ASRBase` Protocol (Model Contract)**: This is the foundational interface that your underlying ASR model must implement. It defines methods like `transcribe()`, `ts_words()`, etc.
+1. **`ASRBase` Protocol (Backend Contract)**: This is the foundational interface that your underlying ASR model must implement. It defines methods like `transcribe()`, `ts_words()`, `segments_end_ts()`, etc. This is the same interface used by the legacy system.
 
-2. **`ASRProcessor` Protocol (Real-Time Wrapper Contract)**: The server communicates with a real-time "processor" that handles buffering, streaming logic, and state management. The `OnlineASRProcessor` class is a ready-to-use implementation.
+2. **`OnlineASRProcessor` (Real-Time Engine)**: The main processor that handles audio buffering, hypothesis stabilization, and buffer management. It wraps your ASR backend and provides the real-time processing logic.
 
-3. **`ModelLoader` Protocol (Factory)**: A dedicated class that knows how to create an instance of your `ASRProcessor`. The server maintains a registry to find the correct loader based on configuration.
+3. **`ModelLoader` Protocol (Factory)**: A dedicated class that knows how to create an `ASRBase` backend and wrap it with `OnlineASRProcessor`. The server maintains a registry to find the correct loader based on configuration.
 
 ## Integration Process
 
-### Step 1: Ensure Your Model Conforms to ASRBase
+### Step 1: Implement ASRBase Interface
 
-Your ASR model must implement the following methods:
+Your ASR backend must implement the `ASRBase` interface, which is the same interface used by the legacy whisper-streaming system:
 
-- `__init__(...)`: Initialize the model with parameters
+- `__init__(lan, modelsize, cache_dir, model_dir, logfile)`: Initialize the backend
+- `load_model(modelsize, cache_dir, model_dir)`: Load the ASR model
 - `transcribe(audio, init_prompt)`: Run transcription on an audio buffer
 - `ts_words(transcription_result)`: Extract word-level timestamps
 - `segments_end_ts(transcription_result)`: Extract segment end times
@@ -27,37 +28,73 @@ Your ASR model must implement the following methods:
 **Example: `my_custom_asr.py`**
 
 ```python
-from asr_interface.core.protocols import ASRBase
+import sys
+from abc import ABC, abstractmethod
+from typing import Any, List, Tuple
+
+class ASRBase(ABC):
+    """Abstract base class for ASR backends."""
+    sep = " "  # Default separator
+
+    def __init__(self, lan: str, modelsize: str = None, cache_dir: str = None, model_dir: str = None, logfile=sys.stderr):
+        self.logfile = logfile
+        self.transcribe_kargs = {}
+        self.original_language = None if lan == "auto" else lan
+        self.model = self.load_model(modelsize, cache_dir, model_dir)
+
+    @abstractmethod
+    def load_model(self, modelsize: str = None, cache_dir: str = None, model_dir: str = None):
+        raise NotImplementedError("must be implemented in the child class")
+
+    @abstractmethod
+    def transcribe(self, audio, init_prompt: str = "") -> dict:
+        raise NotImplementedError("must be implemented in the child class")
+
+    @abstractmethod
+    def ts_words(self, transcription_result: Any) -> List[Tuple[float, float, str]]:
+        raise NotImplementedError("must be implemented in the child class")
+
+    @abstractmethod
+    def segments_end_ts(self, transcription_result: Any) -> List[float]:
+        raise NotImplementedError("must be implemented in the child class")
+
+    @abstractmethod
+    def use_vad(self):
+        raise NotImplementedError("must be implemented in the child class")
 
 class MyCustomASR(ASRBase):
-    def __init__(self, lan: str, modelsize: str = None, cache_dir: str = None, model_dir: str = None, logfile=None):
-        # Your custom model loading logic
-        print(f"Loading MY custom model: {modelsize}")
-        self.model = self._load_model(modelsize, cache_dir, model_dir)
-        super().__init__(lan, modelsize, cache_dir, model_dir, logfile)
+    """Your custom ASR backend implementation."""
+    
+    sep = " "  # Word separator
 
-    def load_model(self, modelsize: str = None, cache_dir: str = None, model_dir: str = None):
-        # Implement your model loading logic
-        # This could load from Hugging Face, local files, etc.
-        pass
+    def load_model(self, modelsize=None, cache_dir=None, model_dir=None):
+        # Load your custom model
+        print(f"Loading custom model: {modelsize}")
+        return self._load_my_model(modelsize, cache_dir, model_dir)
 
-    def transcribe(self, audio, init_prompt: str = "") -> dict:
+    def transcribe(self, audio, init_prompt=""):
         # Your custom transcription logic
         # Must return a dictionary with a "segments" key
-        raw_result = self.model.process(audio, prompt=init_prompt)
-        return self._adapt_result_to_standard_format(raw_result)
+        result = self.model.process(audio, prompt=init_prompt, **self.transcribe_kargs)
+        return self._adapt_result_to_standard_format(result)
     
     def ts_words(self, transcription_result):
         # Extract word-level timestamps from the result
+        # Return list of (start_time, end_time, word) tuples
         return self._extract_word_timestamps(transcription_result)
     
     def segments_end_ts(self, transcription_result):
         # Extract segment end times
+        # Return list of segment end timestamps
         return self._extract_segment_times(transcription_result)
     
     def use_vad(self):
         # Enable Voice Activity Detection
-        return True
+        self.transcribe_kargs["vad"] = True
+    
+    def _load_my_model(self, modelsize, cache_dir, model_dir):
+        # Implement your model loading logic
+        pass
     
     def _adapt_result_to_standard_format(self, raw_result):
         # Convert your model's output to the expected format
@@ -73,7 +110,7 @@ Create a new file, for example, `my_model_loader.py`:
 import sys
 from asr_interface.core.protocols import ModelLoader, ASRProcessor
 from asr_interface.core.config import ASRConfig
-from asr_interface.backends.whisper_loader import OnlineASRProcessor
+from asr_interface.backends.whisper_online_processor import OnlineASRProcessor
 from .my_custom_asr import MyCustomASR
 
 class MyCustomASRLoader(ModelLoader):
@@ -86,26 +123,24 @@ class MyCustomASRLoader(ModelLoader):
         """
         print("Using MyCustomASRLoader...")
 
-        # 1. Instantiate your custom ASRBase-compliant model
-        my_asr_model = MyCustomASR(
+        # 1. Instantiate your custom ASRBase-compliant backend
+        my_asr_backend = MyCustomASR(
             lan=config.lan,
             modelsize=config.model,
-            cache_dir=getattr(config, 'cache_dir', None),
-            model_dir=getattr(config, 'model_dir', None),
-            logfile=sys.stderr
+            cache_dir=config.model_cache_dir,
+            model_dir=config.model_dir
         )
 
         # 2. Wrap it with the standard OnlineASRProcessor
         online_processor = OnlineASRProcessor(
-            asr=my_asr_model,
+            asr=my_asr_backend,
             buffer_trimming=(config.buffer_trimming, int(config.buffer_trimming_sec)),
-            min_chunk_sec=config.min_chunk_size,
-            logfile=sys.stderr
+            min_chunk_sec=config.min_chunk_size
         )
 
         # 3. Define any specific metadata for your model
         metadata = {
-            "separator": getattr(my_asr_model, "sep", " "),
+            "separator": my_asr_backend.sep,
             "model_type": "custom",
             "model_size": config.model,
             "language": config.lan,

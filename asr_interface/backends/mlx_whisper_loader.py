@@ -1,79 +1,111 @@
-"""MLX Whisper ASR model loader."""
+"""MLX Whisper ASR backend implementation."""
 
 import logging
 import sys
 import numpy as np
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
+from abc import ABC, abstractmethod
 
 from ..core.config import ASRConfig
-from ..core.protocols import ASRProcessor, ModelLoader
+from ..core.protocols import ModelLoader, ASRProcessor
 
 logger = logging.getLogger(__name__)
 
 
-class MLXWhisperProcessor(ASRProcessor):
+class ASRBase(ABC):
     """
-    MLX Whisper real-time ASR processor optimized for Apple Silicon.
+    Abstract Base Class for an Automatic Speech Recognition (ASR) backend.
+
+    This class defines a standard interface that the OnlineASRProcessor can use
+    to interact with different ASR models.
+    """
+    sep = " "  # Default separator
+
+    def __init__(self, lan: str, modelsize: str = None, cache_dir: str = None, model_dir: str = None, logfile=sys.stderr):
+        self.logfile = logfile
+        self.transcribe_kargs = {}
+        self.original_language = None if lan == "auto" else lan
+        self.model = self.load_model(modelsize, cache_dir, model_dir)
+
+    @abstractmethod
+    def load_model(self, modelsize: str = None, cache_dir: str = None, model_dir: str = None):
+        raise NotImplementedError("must be implemented in the child class")
+
+    @abstractmethod
+    def transcribe(self, audio, init_prompt: str = "") -> dict:
+        raise NotImplementedError("must be implemented in the child class")
+
+    @abstractmethod
+    def ts_words(self, transcription_result: Any) -> List[Tuple[float, float, str]]:
+        raise NotImplementedError("must be implemented in the child class")
+
+    @abstractmethod
+    def segments_end_ts(self, transcription_result: Any) -> List[float]:
+        raise NotImplementedError("must be implemented in the child class")
+
+    @abstractmethod
+    def use_vad(self):
+        raise NotImplementedError("must be implemented in the child class")
+
+
+class MLXWhisper(ASRBase):
+    """
+    MLX Whisper ASR backend implementation.
     
-    This processor implements the ASRProcessor protocol directly,
-    providing complete control over the real-time processing pipeline
-    for MLX Whisper models.
-    
+    Uses MLX Whisper library as the backend, optimized for Apple Silicon.
     Models available: https://huggingface.co/collections/mlx-community/whisper-663256f9964fbb1177db93dc
+    Significantly faster than faster-whisper (without CUDA) on Apple M1.
     """
 
-    def __init__(self, model_size: str, language: str, min_chunk_sec: float = 1.0):
+    sep = " "
+
+    def load_model(self, modelsize=None, cache_dir=None, model_dir=None):
         """
-        Initialize the MLX Whisper processor.
-        
+        Loads the MLX-compatible Whisper model.
+
         Args:
-            model_size: The size of the Whisper model (e.g., "tiny", "base", "small")
-            language: Language code (e.g., "en", "auto")
-            min_chunk_sec: Minimum chunk size in seconds
+            modelsize (str, optional): The size or name of the Whisper model to load.
+                If provided, it will be translated to an MLX-compatible model path using the `translate_model_name` method.
+                Example: "large-v3-turbo" -> "mlx-community/whisper-large-v3-turbo".
+            cache_dir (str, optional): Path to the directory for caching models.
+                **Note**: This is not supported by MLX Whisper and will be ignored.
+            model_dir (str, optional): Direct path to a custom model directory.
+                If specified, it overrides the `modelsize` parameter.
         """
-        self.model_size = model_size
-        self.language = language
-        self.min_chunk_sec = min_chunk_sec
-        self.sampling_rate = 16000
-        
-        # Internal state
-        self._audio_buffer = np.array([], dtype=np.float32)
-        self._offset = 0.0
-        self._model = None
-        self._transcribe_func = None
-        
-        # Load the model
-        self._load_model()
-        
-        logger.info(f"MLX Whisper processor initialized with model: {model_size}")
+        from mlx_whisper.transcribe import ModelHolder, transcribe
+        import mlx.core as mx  # Is installed with mlx-whisper
 
-    def _load_model(self):
-        """Load the MLX Whisper model."""
-        try:
-            from mlx_whisper.transcribe import ModelHolder, transcribe
-            import mlx.core as mx
-            
-            # Translate model name to MLX-compatible path
-            model_path = self._translate_model_name(self.model_size)
-            
-            # Load the model (ModelHolder.get_model loads into static class variable)
-            dtype = mx.float16
-            ModelHolder.get_model(model_path, dtype)
-            
-            self._transcribe_func = transcribe
-            self._model_path = model_path
-            
-            logger.info(f"MLX Whisper model loaded: {model_path}")
-            
-        except ImportError:
-            raise RuntimeError(
-                "MLX Whisper not installed. Install with: pip install mlx-whisper"
-            )
-        except Exception as e:
-            raise RuntimeError(f"Failed to load MLX Whisper model: {e}")
+        if model_dir is not None:
+            logger.debug(f"Loading whisper model from model_dir {model_dir}. modelsize parameter is not used.")
+            model_size_or_path = model_dir
+        elif modelsize is not None:
+            model_size_or_path = self.translate_model_name(modelsize)
+            logger.debug(
+                f"Loading whisper model {modelsize}. You use mlx whisper, so {model_size_or_path} will be used.")
 
-    def _translate_model_name(self, model_name: str) -> str:
-        """Translate Whisper model name to MLX-compatible path."""
+        self.model_size_or_path = model_size_or_path
+
+        # Note: ModelHolder.get_model loads the model into a static class variable,
+        # making it a global resource. This means:
+        # - Only one model can be loaded at a time; switching models requires reloading.
+        # - This approach may not be suitable for scenarios requiring multiple models simultaneously,
+        #   such as using whisper-streaming as a module with varying model sizes.
+        dtype = mx.float16  # Default to mx.float16. In mlx_whisper.transcribe: dtype = mx.float16 if decode_options.get("fp16", True) else mx.float32
+        ModelHolder.get_model(model_size_or_path, dtype)  # Model is preloaded to avoid reloading during transcription
+
+        return transcribe
+
+    def translate_model_name(self, model_name):
+        """
+        Translates a given model name to its corresponding MLX-compatible model path.
+
+        Args:
+            model_name (str): The name of the model to translate.
+
+        Returns:
+            str: The MLX-compatible model path.
+        """
+        # Dictionary mapping model names to MLX-compatible paths
         model_mapping = {
             "tiny.en": "mlx-community/whisper-tiny.en-mlx",
             "tiny": "mlx-community/whisper-tiny-mlx",
@@ -86,87 +118,30 @@ class MLXWhisperProcessor(ASRProcessor):
             "large-v1": "mlx-community/whisper-large-v1-mlx",
             "large-v2": "mlx-community/whisper-large-v2-mlx",
             "large-v3": "mlx-community/whisper-large-v3-mlx",
-            "large-v3-turbo": "mlx-community/whisper-large-v3-turbo",
-            "large": "mlx-community/whisper-large-mlx"
+            "large-v3-turbo": "mlx-community/whisper-large-v3-turbo-mlx",
         }
-        
-        mlx_model_path = model_mapping.get(model_name)
-        if not mlx_model_path:
-            raise ValueError(f"Model name '{model_name}' is not supported by MLX Whisper")
-        
-        return mlx_model_path
 
-    def init(self, offset: float = 0.0) -> None:
-        """Initialize the processor with an optional time offset."""
-        self._audio_buffer = np.array([], dtype=np.float32)
-        self._offset = offset
-        logger.debug(f"MLX Whisper processor initialized with offset: {offset}")
+        return model_mapping.get(model_name, model_name)
 
-    def insert_audio_chunk(self, audio_chunk: np.ndarray) -> None:
-        """Insert an audio chunk for processing."""
-        self._audio_buffer = np.append(self._audio_buffer, audio_chunk)
+    def transcribe(self, audio, init_prompt=""):
+        from mlx_whisper.transcribe import transcribe
+        result = transcribe(self.model, audio, initial_prompt=init_prompt, **self.transcribe_kargs)
+        return result
 
-    def process_iter(self) -> Optional[Tuple[float, float, str]]:
-        """
-        Process the current audio buffer and return results if available.
-        
-        Returns:
-            Optional[Tuple[float, float, str]]: A tuple of (start_time, end_time, text) 
-            if a segment is ready, None otherwise.
-        """
-        # Check if we have enough audio to process
-        min_samples = int(self.min_chunk_sec * self.sampling_rate)
-        
-        if len(self._audio_buffer) < min_samples:
-            return None
-        
-        try:
-            # Transcribe the current buffer
-            segments = self._transcribe_func(
-                self._audio_buffer,
-                language=self.language,
-                word_timestamps=True,
-                condition_on_previous_text=True,
-                path_or_hf_repo=self._model_path
-            )
-            
-            # Extract text from segments
-            if segments and "segments" in segments:
-                text_parts = []
-                for segment in segments["segments"]:
-                    if segment.get("no_speech_prob", 0) <= 0.9:  # Filter out non-speech
-                        text_parts.append(segment.get("text", "").strip())
-                
-                if text_parts:
-                    # Calculate timing
-                    start_time = self._offset
-                    end_time = start_time + len(self._audio_buffer) / self.sampling_rate
-                    text = " ".join(text_parts)
-                    
-                    # Clear the buffer
-                    self._audio_buffer = np.array([], dtype=np.float32)
-                    self._offset = end_time
-                    
-                    logger.debug(f"Processed segment: {start_time:.2f}s - {end_time:.2f}s: {text}")
-                    return (start_time, end_time, text)
-            
-            return None
-            
-        except Exception as e:
-            logger.error(f"Error processing audio chunk: {e}")
-            return None
+    def ts_words(self, segments):
+        # return: transcribe result object to [(beg,end,"word1"), ...]
+        o = []
+        for s in segments:
+            for w in s["words"]:
+                t = (w["start"], w["end"], w["text"])
+                o.append(t)
+        return o
 
-    def finish(self) -> Optional[Tuple[float, float, str]]:
-        """
-        Finalize processing and return any remaining results.
-        
-        Returns:
-            Optional[Tuple[float, float, str]]: Final segment if available, None otherwise.
-        """
-        if len(self._audio_buffer) > 0:
-            logger.debug("Processing final audio buffer")
-            return self.process_iter()
-        return None
+    def segments_end_ts(self, res):
+        return [s["end"] for s in res["segments"]]
+
+    def use_vad(self):
+        self.transcribe_kargs["vad"] = True
 
 
 class MLXWhisperLoader(ModelLoader):
@@ -196,10 +171,20 @@ class MLXWhisperLoader(ModelLoader):
         logger.info("Using MLXWhisperLoader...")
 
         try:
-            # Create the MLX Whisper processor directly
-            processor = MLXWhisperProcessor(
-                model_size=config.model,
-                language=config.lan,
+            # Create the ASR backend
+            from .whisper_online_processor import OnlineASRProcessor
+            
+            asr_backend = MLXWhisper(
+                lan=config.lan,
+                modelsize=config.model,
+                cache_dir=config.model_cache_dir,
+                model_dir=config.model_dir
+            )
+
+            # Create the OnlineASRProcessor that wraps the backend
+            processor = OnlineASRProcessor(
+                asr=asr_backend,
+                buffer_trimming=(config.buffer_trimming, int(config.buffer_trimming_sec)),
                 min_chunk_sec=config.min_chunk_size
             )
             
@@ -207,7 +192,7 @@ class MLXWhisperLoader(ModelLoader):
 
             # Define metadata for the MLX Whisper backend
             metadata = {
-                "separator": " ",
+                "separator": asr_backend.sep,
                 "model_type": "mlx_whisper",
                 "model_size": config.model,
                 "language": config.lan,

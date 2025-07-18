@@ -85,29 +85,30 @@ asr-interface transcribe audio_file.wav --model tiny
 
 ## Architecture
 
-The ASR Interface follows a modular architecture with clear separation of concerns:
+The ASR Interface follows a modular architecture based on the legacy whisper-streaming system with clear separation of concerns:
 
 ### Core Components
 
 - **`asr_interface.core`**: Core protocols, configuration, and state management
-- **`asr_interface.backends`**: ASR model loaders and backend implementations
+- **`asr_interface.backends`**: ASR backends and model loaders
 - **`asr_interface.handlers`**: Real-time audio processing handlers
 - **`asr_interface.web`**: FastAPI web server and API endpoints
 - **`asr_interface.utils`**: Utility functions for audio processing
 - **`asr_interface.cli`**: Command-line interface
 
-### Key Protocols
+### Key Protocols and Classes
 
-- **`ASRProcessor`**: Interface for real-time ASR processors
-- **`ModelLoader`**: Interface for loading ASR models
+- **`ASRBase`**: Abstract base class for ASR backends (Whisper, MLX Whisper, etc.)
+- **`OnlineASRProcessor`**: Main processor that manages audio buffering and hypothesis stabilization
+- **`ModelLoader`**: Interface for loading ASR models and creating processors
 - **`ASRConfig`**: Configuration model for ASR settings
 
 ### Data Flow
 
-1. **Model Loading**: `ModelLoader` creates an `ASRProcessor` from configuration
-2. **Audio Processing**: `RealTimeASRHandler` processes WebRTC audio streams
-3. **Transcription**: `ASRProcessor` generates real-time transcriptions
-4. **Output**: Results are streamed to clients via WebRTC/HTTP
+1. **Model Loading**: `ModelLoader` creates an `ASRBase` backend and wraps it with `OnlineASRProcessor`
+2. **Audio Processing**: `OnlineASRProcessor` manages audio buffering, calls the ASR backend, and stabilizes transcripts
+3. **Real-time Streaming**: `RealTimeASRHandler` receives WebRTC audio and feeds it to the processor
+4. **Output**: Stabilized transcripts are returned to the client
 
 ## API Reference
 

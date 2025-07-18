@@ -13,8 +13,8 @@ A modern, modular real-time Automatic Speech Recognition (ASR) interface with su
 - 🔄 **Modular Architecture**: Easy integration of custom ASR backends
 - 📊 **Model Evaluation**: Compare ASR performance with reference transcripts
 - 🌐 **Web Interface**: Modern, responsive web UI for configuration and monitoring
-- 🖥️ **CLI Interface**: Command-line tools for server management and transcription
-- ⚡ **High Performance**: Optimized for low-latency real-time processing
+- 🖥️ **CLI Interface**: Command-line tools for server management
+- ⚡ **High Performance**: Optimized for low-latency real-time processing by relying on WebRTC
 
 ## Quick Start
 
@@ -114,12 +114,12 @@ uvicorn asr_interface.web.server:create_app --reload
 
 ## Architecture
 
-The ASR Interface follows a clean, modular architecture:
+The ASR Interface follows a clean, modular architecture based on the legacy whisper-streaming system:
 
 ```
 asr_interface/
 ├── core/           # Core protocols and configuration
-├── backends/       # ASR model loaders (Whisper, etc.)
+├── backends/       # ASR backends and model loaders
 ├── handlers/       # Real-time audio processing
 ├── web/           # FastAPI web server
 ├── utils/         # Audio processing utilities
@@ -128,10 +128,18 @@ asr_interface/
 
 ### Key Components
 
-- **`ASRProcessor`**: Protocol for real-time ASR processors
-- **`ModelLoader`**: Protocol for loading ASR models
+- **`ASRBase`**: Abstract base class for ASR backends (Whisper, MLX Whisper, etc.)
+- **`OnlineASRProcessor`**: Main processor that manages audio buffering and hypothesis stabilization
+- **`ModelLoader`**: Protocol for loading ASR models and creating processors
 - **`RealTimeASRHandler`**: WebRTC audio stream handler
 - **`ASRComponentsStore`**: Thread-safe state management
+
+### Architecture Flow
+
+1. **Model Loading**: `ModelLoader` creates an `ASRBase` backend and wraps it with `OnlineASRProcessor`
+2. **Audio Processing**: `OnlineASRProcessor` manages audio buffering, calls the ASR backend, and stabilizes transcripts
+3. **Real-time Streaming**: `RealTimeASRHandler` receives WebRTC audio and feeds it to the processor
+4. **Output**: Stabilized transcripts are returned to the client
 
 ## API Reference
 
@@ -162,17 +170,54 @@ The modular architecture makes it easy to add custom ASR backends. There are two
 
 ### Path 1: Using Existing Real-Time Engine (Recommended)
 
-For most use cases, you can provide your own ASR model and reuse the existing real-time processing logic:
+For most use cases, you can provide your own ASR backend and reuse the existing `OnlineASRProcessor`:
 
 ```python
 from asr_interface.core.protocols import ModelLoader, ASRProcessor
 from asr_interface.core.config import ASRConfig
+from asr_interface.backends.whisper_online_processor import OnlineASRProcessor
+
+class MyCustomASR(ASRBase):
+    """Your custom ASR backend implementing ASRBase."""
+    
+    def load_model(self, modelsize=None, cache_dir=None, model_dir=None):
+        # Load your model
+        pass
+    
+    def transcribe(self, audio, init_prompt=""):
+        # Transcribe audio and return result with segments
+        pass
+    
+    def ts_words(self, result):
+        # Extract word-level timestamps
+        pass
+    
+    def segments_end_ts(self, result):
+        # Extract segment end timestamps
+        pass
+    
+    def use_vad(self):
+        # Enable VAD if supported
+        pass
 
 class MyCustomLoader(ModelLoader):
     def load(self, config: ASRConfig) -> tuple[ASRProcessor, dict]:
-        # Your loading logic here
-        processor = MyCustomProcessor(config)
-        metadata = {"separator": " "}
+        # Create your ASR backend
+        asr_backend = MyCustomASR(
+            lan=config.lan,
+            modelsize=config.model,
+            cache_dir=config.model_cache_dir,
+            model_dir=config.model_dir
+        )
+        
+        # Wrap with OnlineASRProcessor
+        processor = OnlineASRProcessor(
+            asr=asr_backend,
+            buffer_trimming=(config.buffer_trimming, int(config.buffer_trimming_sec)),
+            min_chunk_sec=config.min_chunk_size
+        )
+        
+        metadata = {"separator": asr_backend.sep, "model_type": "my_custom"}
         return processor, metadata
 
 # Register your loader
@@ -205,7 +250,7 @@ class MyCustomRealTimeEngine(ASRProcessor):
         pass
 ```
 
-For detailed integration guides, see [Custom Backend Integration](docs/README.md#custom-backend-integration).
+For detailed integration guides, see [Custom Backend Integration](docs/INTEGRATION_GUIDE.md).
 
 ## Development
 

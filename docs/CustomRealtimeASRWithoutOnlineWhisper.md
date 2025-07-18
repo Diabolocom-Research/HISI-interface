@@ -6,11 +6,11 @@ This guide is for developers who want to integrate a completely custom real-time
 
 The key to this integration is understanding that the server only depends on two specific protocols:
 
-1. **`ASRProcessor` Protocol**: This is the most important protocol. It defines the contract for any real-time processing engine. The server's `RealTimeASRHandler` interacts *only* with this interface to feed in audio and get back transcripts.
+1. **`ASRProcessor` Protocol**: This is the most important protocol. It defines the contract for any real-time processing engine. The server's `RealTimeASRHandler` interacts *only* with this interface to feed in audio and get back transcripts. You implement this to replace the `OnlineASRProcessor`.
 
 2. **`ModelLoader` Protocol**: This is a factory protocol. Its job is to know how to create an instance of your custom `ASRProcessor`.
 
-To integrate your system, you will need to provide your own concrete implementations of these two protocols.
+To integrate your system, you will need to provide your own concrete implementations of these two protocols, giving you complete control over the real-time processing pipeline.
 
 ## Integration Process
 
