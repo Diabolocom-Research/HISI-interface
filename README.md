@@ -22,7 +22,7 @@ A modern, modular real-time Automatic Speech Recognition (ASR) interface with su
 #### Prerequisites
 
 - Python 3.10 or higher
-- [uv](https://github.com/astral-sh/uv) (recommended) or pip
+- [uv](https://github.com/astral-sh/uv)
 
 #### Using uv (Recommended)
 
@@ -39,29 +39,6 @@ uv sync
 
 # Install the package in development mode
 uv pip install -e .
-```
-
-#### Using pip
-
-```bash
-# Clone the repository
-git clone https://github.com/your-username/asr-interface.git
-cd asr-interface
-
-# Create virtual environment
-python -m venv venv
-
-# Activate virtual environment
-# On macOS/Linux:
-source venv/bin/activate
-# On Windows:
-# venv\Scripts\activate
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Install the package in development mode
-pip install -e .
 ```
 
 ### Start the Server
@@ -267,6 +244,10 @@ For detailed documentation, see the [docs/](docs/) directory:
 - **[Deployment](docs/DEPLOYMENT.md)** - Production deployment guide
 - **[Testing](docs/TESTING.md)** - Testing strategies and examples
 
+## Interface
+
+![ASR Interface Screenshot](assets/asr_interface_screenshot.png)
+
 ## Contributing
 
 We welcome contributions! Please see our [Contributing Guide](docs/README.md#contributing) for details.
@@ -291,7 +272,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - Icons provided by [Icons8](https://icons8.com/license)
 - WebRTC implementation powered by [FastRTC](https://github.com/fastrtc/fastrtc)
 
-![ASR Interface Screenshot](assets/asr_interface_screenshot.png)
 
 ## Troubleshooting
 
