@@ -234,16 +234,6 @@ asr-interface/
 └── README.md             # This file
 ```
 
-## Documentation
-
-For detailed documentation, see the [docs/](docs/) directory:
-
-- **[Integration Guide](docs/INTEGRATION_GUIDE.md)** - Complete guide for integrating custom ASR backends
-- **[API Reference](docs/API_REFERENCE.md)** - Complete API documentation
-- **[Architecture](docs/ARCHITECTURE.md)** - System architecture and design decisions
-- **[Deployment](docs/DEPLOYMENT.md)** - Production deployment guide
-- **[Testing](docs/TESTING.md)** - Testing strategies and examples
-
 ## Interface
 
 ![ASR Interface Screenshot](assets/asr_interface_screenshot.png)
