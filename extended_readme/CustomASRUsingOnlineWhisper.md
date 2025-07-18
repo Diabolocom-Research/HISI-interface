@@ -1,77 +1,86 @@
-# Integrating a Custom Real-Time ASR Model
+# Integrating a Custom ASR Model (Path 1: Using Existing Real-Time Engine)
 
-This guide explains how to integrate your own real-time Automatic Speech Recognition (ASR) model into the provided FastAPI server framework. The server is built on a modular, protocol-oriented design that makes it easy to add new ASR backends without modifying the core server logic.
+This guide explains how to integrate your own Automatic Speech Recognition (ASR) model into the ASR Interface using the existing real-time processing engine. This is the **recommended approach** for most use cases as it requires minimal custom code while providing full real-time functionality.
 
-### Architectural Overview
+## Architectural Overview
 
-The server's design separates the "how" of model loading from the "what" of the server's operation. This is achieved through three key concepts:
+The ASR Interface uses a modular, protocol-oriented design with three key components:
 
-1.  **`ASRBase` Protocol (The Model Contract):** This is the foundational interface that your underlying ASR model must adhere to. It defines methods like `transcribe()`, `ts_words()`, etc. The `whisper_online` library already provides this.
+1. **`ASRBase` Protocol (Model Contract)**: This is the foundational interface that your underlying ASR model must implement. It defines methods like `transcribe()`, `ts_words()`, etc.
 
-2.  **`ASRProcessor` Protocol (The Real-Time Wrapper Contract):** The server doesn't interact with your base model directly. It communicates with a real-time "processor" that handles buffering, streaming logic, and state management. The `OnlineASRProcessor` class is a ready-to-use implementation of this protocol.
+2. **`ASRProcessor` Protocol (Real-Time Wrapper Contract)**: The server communicates with a real-time "processor" that handles buffering, streaming logic, and state management. The `OnlineASRProcessor` class is a ready-to-use implementation.
 
-3.  **`ModelLoader` Protocol & Registry (The Factory):** This is the main extension point. A `ModelLoader` is a dedicated class whose only job is to know how to create an instance of your `ASRProcessor`. The server maintains a registry (`MODEL_LOADERS` dictionary) to find the correct loader based on a configuration string.
+3. **`ModelLoader` Protocol (Factory)**: A dedicated class that knows how to create an instance of your `ASRProcessor`. The server maintains a registry to find the correct loader based on configuration.
 
-The integration process involves creating your own components that fulfill these contracts and registering them with the server.
+## Integration Process
 
----
+### Step 1: Ensure Your Model Conforms to ASRBase
 
-### Step 1: Ensure Your Model Conforms to `ASRBase`
+Your ASR model must implement the following methods:
 
-Before you begin, you need a Python class for your ASR model that conforms to the `ASRBase` interface defined in `whisper_online`. This means it must have the following methods:
-
--   `__init__(...)`: To initialize the model with parameters like language, model size, etc.
--   `transcribe(audio, init_prompt)`: To run transcription on an audio buffer.
--   `ts_words(transcription_result)`: To extract word-level timestamps from the result.
--   `segments_end_ts(transcription_result)`: To extract segment end times.
--   `use_vad()`: To enable Voice Activity Detection.
-
-If you have built your model by inheriting from `whisper_online.ASRBase`, you have already completed this step. If not, you will need to create an **adapter class** that wraps your model and exposes these methods.
+- `__init__(...)`: Initialize the model with parameters
+- `transcribe(audio, init_prompt)`: Run transcription on an audio buffer
+- `ts_words(transcription_result)`: Extract word-level timestamps
+- `segments_end_ts(transcription_result)`: Extract segment end times
+- `use_vad()`: Enable Voice Activity Detection
 
 **Example: `my_custom_asr.py`**
+
 ```python
-from real_time_asr_backend.slimer_whisper_online import ASRBase
+from asr_interface.core.protocols import ASRBase
 
 class MyCustomASR(ASRBase):
-    def __init__(self, modelsize, lan, **kwargs):
+    def __init__(self, lan: str, modelsize: str = None, cache_dir: str = None, model_dir: str = None, logfile=None):
         # Your custom model loading logic
         print(f"Loading MY custom model: {modelsize}")
-        self.model = ... # Load your model weights/files here
-        super().__init__(lan, modelsize, **kwargs)
+        self.model = self._load_model(modelsize, cache_dir, model_dir)
+        super().__init__(lan, modelsize, cache_dir, model_dir, logfile)
 
-    def transcribe(self, audio, init_prompt=""):
+    def load_model(self, modelsize: str = None, cache_dir: str = None, model_dir: str = None):
+        # Implement your model loading logic
+        # This could load from Hugging Face, local files, etc.
+        pass
+
+    def transcribe(self, audio, init_prompt: str = "") -> dict:
         # Your custom transcription logic
         # Must return a dictionary with a "segments" key
         raw_result = self.model.process(audio, prompt=init_prompt)
         return self._adapt_result_to_standard_format(raw_result)
     
-    # ... implement ts_words, segments_end_ts, and use_vad ...
+    def ts_words(self, transcription_result):
+        # Extract word-level timestamps from the result
+        return self._extract_word_timestamps(transcription_result)
+    
+    def segments_end_ts(self, transcription_result):
+        # Extract segment end times
+        return self._extract_segment_times(transcription_result)
+    
+    def use_vad(self):
+        # Enable Voice Activity Detection
+        return True
+    
+    def _adapt_result_to_standard_format(self, raw_result):
+        # Convert your model's output to the expected format
+        # Should return a dict with "segments" key
+        pass
 ```
 
-### Step 2: Reuse the `OnlineASRProcessor`
-
-The `OnlineASRProcessor` is designed to work with *any* object that follows the `ASRBase` contract. It handles all the complex real-time logic like audio buffering, transcript stabilization (`HypothesisBuffer`), and buffer trimming.
-
-For most use cases, **you do not need to write your own real-time processor.** You can simply wrap your `ASRBase`-compliant model from Step 1 with the existing `OnlineASRProcessor`.
-
-### Step 3: Create a Custom `ModelLoader`
-
-This is the primary piece of code you need to write. You will create a new class that inherits from `ModelLoader` and knows how to instantiate your specific ASR model and wrap it with the `OnlineASRProcessor`.
+### Step 2: Create a Custom ModelLoader
 
 Create a new file, for example, `my_model_loader.py`:
 
-**`my_model_loader.py`**
 ```python
 import sys
-from real_time_asr_backend.real_time_asr_protocols import ModelLoader, ASRProcessor
-from real_time_asr_backend.slimer_whisper_online import OnlineASRProcessor
-from .my_custom_asr import MyCustomASR  # Import your custom ASR class from Step 1
+from asr_interface.core.protocols import ModelLoader, ASRProcessor
+from asr_interface.core.config import ASRConfig
+from asr_interface.backends.whisper_loader import OnlineASRProcessor
+from .my_custom_asr import MyCustomASR
 
 class MyCustomASRLoader(ModelLoader):
     """
     Loads the custom ASR model and wraps it in the OnlineASRProcessor.
     """
-    def load(self, config: "ASRConfig") -> tuple[ASRProcessor, dict]:
+    def load(self, config: ASRConfig) -> tuple[ASRProcessor, dict]:
         """
         Contains the specific logic to initialize and return our custom ASR processor.
         """
@@ -79,9 +88,11 @@ class MyCustomASRLoader(ModelLoader):
 
         # 1. Instantiate your custom ASRBase-compliant model
         my_asr_model = MyCustomASR(
-            modelsize=config.model,
             lan=config.lan,
-            # Pass any other relevant config args here
+            modelsize=config.model,
+            cache_dir=getattr(config, 'cache_dir', None),
+            model_dir=getattr(config, 'model_dir', None),
+            logfile=sys.stderr
         )
 
         # 2. Wrap it with the standard OnlineASRProcessor
@@ -94,45 +105,141 @@ class MyCustomASRLoader(ModelLoader):
 
         # 3. Define any specific metadata for your model
         metadata = {
-            "separator": getattr(my_asr_model, "sep", " ")
+            "separator": getattr(my_asr_model, "sep", " "),
+            "model_type": "custom",
+            "model_size": config.model,
+            "language": config.lan,
         }
 
         # 4. Return the processor and metadata
         return online_processor, metadata
 ```
 
-### Step 4: Register Your New Loader in `server.py`
+### Step 3: Register Your Loader
 
-Now, you just need to tell the server about your new loader. Open `server.py` and make two small changes:
-
-1.  **Import your new loader class.**
-2.  **Add an entry to the `MODEL_LOADERS` dictionary.**
-
-**`server.py` (Modified)**
 ```python
-# ... other imports ...
-from real_time_asr_backend.real_time_asr_protocols import ModelLoader
-from real_time_asr_backend.slimer_whisper_online import WhisperOnlineLoader
+from asr_interface.backends.registry import register_loader
+from .my_model_loader import MyCustomASRLoader
 
-# 1. Import your new loader
-from my_model_loader import MyCustomASRLoader 
-
-# ...
-
-# 2. Add your loader to the registry with a unique backend name
-MODEL_LOADERS: dict[str, ModelLoader] = {
-    "whisper_timestamped": WhisperOnlineLoader(),
-    "my_custom_backend": MyCustomASRLoader()  # Add your new entry here
-}
-
-# ... rest of the server code remains unchanged ...
+# Register your loader with a unique backend name
+register_loader("my_custom_backend", MyCustomASRLoader())
 ```
 
-### Step 5: Launch and Test
+### Step 4: Use Your Custom Backend
 
-Your integration is now complete. To use your custom model, you need to send a POST request to the `/load_model` endpoint with the `backend` field set to the name you chose in the registry.
+Send a POST request to `/load_model` with your backend configuration:
 
-1.  **Run the server:** `python server.py`
-2.  **Send the configuration request:** You can use a tool like `curl` or a Python script.
+```json
+{
+  "model": "my_model_size",
+  "lan": "en",
+  "task": "transcribe",
+  "backend": "my_custom_backend",
+  "min_chunk_size": 1.0,
+  "buffer_trimming": "segment",
+  "buffer_trimming_sec": 10.0
+}
+```
 
-The server will now use your `MyCustomASRLoader` to initialize `MyCustomASR`, wrap it in the `OnlineASRProcessor`, and make it ready to handle real-time audio streams.
+## Configuration Extensions
+
+If your custom backend requires additional configuration parameters, you can extend the `ASRConfig` model:
+
+```python
+from asr_interface.core.config import ASRConfig
+from pydantic import Field
+
+class ExtendedASRConfig(ASRConfig):
+    """Extended configuration for custom backends."""
+    
+    device: str = Field(default="cpu", description="Device to run model on")
+    custom_param: str = Field(default="", description="Custom parameter for your backend")
+    model_path: str = Field(default="", description="Path to model files")
+    batch_size: int = Field(default=1, description="Batch size for processing")
+    precision: str = Field(default="float32", description="Model precision")
+```
+
+## Testing Your Integration
+
+### Unit Testing
+
+Create tests for your custom components:
+
+```python
+import pytest
+import numpy as np
+from .my_custom_asr import MyCustomASR
+from .my_model_loader import MyCustomASRLoader
+
+def test_my_custom_asr():
+    asr = MyCustomASR("en", "tiny")
+    audio = np.random.randn(16000)  # 1 second of audio
+    result = asr.transcribe(audio)
+    assert "segments" in result
+
+def test_my_model_loader():
+    loader = MyCustomASRLoader()
+    config = ASRConfig(model="tiny", lan="en", backend="my_custom_backend")
+    processor, metadata = loader.load(config)
+    assert processor is not None
+    assert "separator" in metadata
+```
+
+### Integration Testing
+
+Test your backend with the full system:
+
+```python
+import asyncio
+from asr_interface.web.server import create_app
+from fastapi.testclient import TestClient
+
+def test_custom_backend_integration():
+    app = create_app()
+    client = TestClient(app)
+    
+    # Test model loading
+    response = client.post("/load_model", json={
+        "backend": "my_custom_backend",
+        "model": "tiny",
+        "lan": "en"
+    })
+    assert response.status_code == 200
+    
+    # Test transcription
+    # ... add transcription test
+```
+
+## Troubleshooting
+
+### Common Issues
+
+1. **Import Errors**: Make sure your custom modules are in the Python path
+2. **Protocol Compliance**: Ensure your classes implement all required methods
+3. **Configuration**: Verify your configuration parameters match your loader's expectations
+4. **Audio Format**: Ensure your model expects the same audio format (16kHz, float32)
+
+### Debug Tips
+
+1. **Enable Debug Logging**: Set log level to DEBUG to see detailed information
+2. **Test Components Individually**: Test your model and loader separately before integration
+3. **Check Registry**: Verify your loader is properly registered
+4. **Validate Configuration**: Use Pydantic validation to catch configuration errors
+
+## Example: MLX Whisper Integration
+
+For a complete example, see the MLX Whisper integration in `asr_interface/backends/mlx_whisper_loader.py`. This demonstrates:
+
+- Implementing a custom ASR model that conforms to ASRBase
+- Creating a ModelLoader that wraps the model with OnlineASRProcessor
+- Registering the backend in the registry
+- Handling optional dependencies gracefully
+
+## Best Practices
+
+1. **Error Handling**: Implement robust error handling in your components
+2. **Logging**: Add appropriate logging for debugging and monitoring
+3. **Documentation**: Document your custom parameters and requirements
+4. **Testing**: Write comprehensive tests for your integration
+5. **Performance**: Optimize your model for real-time processing
+6. **Compatibility**: Ensure your model works with the expected audio format

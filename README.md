@@ -1,34 +1,325 @@
-# Realtime Automatic Speech Recognition (ASR)
+# ASR Interface
 
-This section of the readme concerns with the real time ASR and how to bring your own custom engine to the interface.
+A modern, modular real-time Automatic Speech Recognition (ASR) interface with support for various ASR backends, built with FastAPI and WebRTC.
 
-## Integrating a Custom ASR RealTime Engine
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
-This guide details the process for integrating a custom ASR engine into the real-time transcription server. The application is built with a modular, protocol-based architecture, allowing developers to easily "plug in" different ASR systems while leveraging the existing server infrastructure for WebRTC and client communication.
+## Features
 
-There are two primary integration paths, depending on your needs and how much of the existing real-time logic you want to use.
-Integration Paths
-1. Path A: Wrapping a Custom Model for the Existing Real-Time Engine
+- 🎤 **Real-time ASR**: Live transcription via WebRTC audio streaming
+- 📁 **File Upload**: Upload and transcribe audio files
+- 🔄 **Modular Architecture**: Easy integration of custom ASR backends
+- 📊 **Model Evaluation**: Compare ASR performance with reference transcripts
+- 🌐 **Web Interface**: Modern, responsive web UI for configuration and monitoring
+- 🖥️ **CLI Interface**: Command-line tools for server management and transcription
+- ⚡ **High Performance**: Optimized for low-latency real-time processing
 
-This is the most common and straightforward approach. It involves using the existing real-time processing logic (OnlineASRProcessor) which handles audio buffering, transcript stabilization, and buffer trimming. You simply need to provide it with your own ASR model.
+## Quick Start
 
-    Choose this path if: You have a pre-trained ASR model (e.g., from Hugging Face, or your own custom-trained model) and want a quick way to make it work in a real-time stream without building your own streaming logic from scratch.
+### Environment Setup
 
-    Core Task: You will create an adapter class that implements the ASRBase interface, which acts as a bridge between the OnlineASRProcessor and your model's specific API.
+Before installing the ASR Interface, you need to set up a Python environment:
 
+#### Option 1: Using uv (Recommended)
 
-For a detailed guide, see: **CustomASRusingOnlineWhisper.md**
+uv is a fast Python package installer and resolver. It automatically creates virtual environments and manages dependencies.
 
-2. Path B: Providing a Fully Custom Real-Time Engine
+```bash
+# Install uv globally
+pip install uv
 
-This is the advanced approach for developers who want to replace the entire real-time processing pipeline with their own.
+# uv will automatically create a virtual environment when you run uv sync
+```
 
-    Choose this path if: You have already built a complete real-time engine that includes custom logic for audio buffering, voice activity detection (VAD), endpointing, and transcript generation.
+#### Option 2: Using venv (Traditional)
 
-    Core Task: You will create a class that implements the ASRProcessor interface. This class will completely replace the default OnlineASRProcessor. The server will feed raw audio chunks to your class and expect finalized transcript segments in return.
+If you prefer the traditional approach with venv:
 
-For a detailed guide, see: **CustomRealtimeASRWithoutOnlineWhisper.md**
+```bash
+# Create a virtual environment
+python -m venv venv
 
-Final Step: Registering Your Implementation
+# Activate it (macOS/Linux)
+source venv/bin/activate
 
-Regardless of the path you choose, the final step is to make the server aware of your new component. This is done by writing a small amount of "glue code" to register your implementation in the server's ModelLoader registry. This makes your custom ASR engine selectable via the /load_model API endpoint.
+# Or on Windows
+# venv\Scripts\activate
+```
+
+### Installation
+
+#### Prerequisites
+
+- Python 3.10 or higher
+- [uv](https://github.com/astral-sh/uv) (recommended) or pip
+
+#### Using uv (Recommended)
+
+```bash
+# Clone the repository
+git clone https://github.com/your-username/asr-interface.git
+cd asr-interface
+
+# Install uv if you haven't already
+pip install uv
+
+# Create virtual environment and install dependencies
+uv sync
+
+# Install the package in development mode
+uv pip install -e .
+```
+
+#### Using pip
+
+```bash
+# Clone the repository
+git clone https://github.com/your-username/asr-interface.git
+cd asr-interface
+
+# Create virtual environment
+python -m venv venv
+
+# Activate virtual environment
+# On macOS/Linux:
+source venv/bin/activate
+# On Windows:
+# venv\Scripts\activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Install the package in development mode
+pip install -e .
+```
+
+### Start the Server
+
+```bash
+# Using the CLI
+asr-interface serve
+
+# Or with uvicorn
+uvicorn asr_interface.web.server:create_app --reload
+```
+
+### Use the Web Interface
+
+1. Open http://localhost:8000 in your browser
+2. Configure your ASR model settings
+3. Start recording or upload an audio file
+4. View real-time transcriptions and segments
+
+## Architecture
+
+The ASR Interface follows a clean, modular architecture:
+
+```
+asr_interface/
+├── core/           # Core protocols and configuration
+├── backends/       # ASR model loaders (Whisper, etc.)
+├── handlers/       # Real-time audio processing
+├── web/           # FastAPI web server
+├── utils/         # Audio processing utilities
+└── cli/           # Command-line interface
+```
+
+### Key Components
+
+- **`ASRProcessor`**: Protocol for real-time ASR processors
+- **`ModelLoader`**: Protocol for loading ASR models
+- **`RealTimeASRHandler`**: WebRTC audio stream handler
+- **`ASRComponentsStore`**: Thread-safe state management
+
+## API Reference
+
+### Web API
+
+- `POST /load_model` - Load ASR model with configuration
+- `POST /upload_and_transcribe` - Upload and transcribe audio file
+- `POST /evaluate_model` - Evaluate model performance
+- `GET /` - Web interface
+- `GET /transcript` - Get transcript for WebRTC session
+
+### CLI Commands
+
+```bash
+# Start web server
+asr-interface serve [--host HOST] [--port PORT] [--reload]
+
+# Transcribe audio file
+asr-interface transcribe audio.wav [--model MODEL] [--language LANG]
+
+# Show project info
+asr-interface info
+```
+
+## Adding Custom ASR Backends
+
+The modular architecture makes it easy to add custom ASR backends. There are two integration paths:
+
+### Path 1: Using Existing Real-Time Engine (Recommended)
+
+For most use cases, you can provide your own ASR model and reuse the existing real-time processing logic:
+
+```python
+from asr_interface.core.protocols import ModelLoader, ASRProcessor
+from asr_interface.core.config import ASRConfig
+
+class MyCustomLoader(ModelLoader):
+    def load(self, config: ASRConfig) -> tuple[ASRProcessor, dict]:
+        # Your loading logic here
+        processor = MyCustomProcessor(config)
+        metadata = {"separator": " "}
+        return processor, metadata
+
+# Register your loader
+from asr_interface.backends.registry import register_loader
+register_loader("my_backend", MyCustomLoader())
+```
+
+### Path 2: Complete Custom Real-Time Engine (Advanced)
+
+For complete control over the real-time processing pipeline:
+
+```python
+from asr_interface.core.protocols import ASRProcessor
+
+class MyCustomRealTimeEngine(ASRProcessor):
+    def init(self, offset: float = 0.0):
+        # Reset state for new stream
+        pass
+    
+    def insert_audio_chunk(self, audio: np.ndarray):
+        # Add audio to buffer
+        pass
+    
+    def process_iter(self) -> Optional[Tuple[float, float, str]]:
+        # Process buffer and return results
+        pass
+    
+    def finish(self) -> Optional[Tuple[float, float, str]]:
+        # Process remaining audio
+        pass
+```
+
+For detailed integration guides, see [Custom Backend Integration](docs/README.md#custom-backend-integration).
+
+## Development
+
+### Setup Development Environment
+
+```bash
+# Install development dependencies
+uv sync --group dev
+
+# Run tests
+pytest
+
+# Format code
+black asr_interface tests
+
+# Lint code
+ruff check asr_interface tests
+
+# Type checking
+mypy asr_interface
+```
+
+### Project Structure
+
+```
+asr-interface/
+├── asr_interface/          # Main package
+│   ├── core/              # Core protocols and configuration
+│   ├── backends/          # ASR model loaders
+│   ├── handlers/          # Real-time processing handlers
+│   ├── web/               # Web server and API
+│   ├── utils/             # Utility functions
+│   └── cli/               # Command-line interface
+├── tests/                 # Test suite
+├── docs/                  # Documentation
+├── pyproject.toml         # Project configuration
+└── README.md             # This file
+```
+
+## Documentation
+
+For detailed documentation, see the [docs/](docs/) directory:
+
+- [Installation Guide](docs/README.md#installation)
+- [API Reference](docs/README.md#api-reference)
+- [Architecture Overview](docs/README.md#architecture)
+- [Development Guide](docs/README.md#development)
+
+## Contributing
+
+We welcome contributions! Please see our [Contributing Guide](docs/README.md#contributing) for details.
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests
+5. Submit a pull request
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Acknowledgments
+
+- Built with [FastAPI](https://fastapi.tiangolo.com/) for the web framework
+- Uses [WebRTC](https://webrtc.org/) for real-time audio streaming
+- Supports [Whisper](https://github.com/openai/whisper) and other ASR models
+- Audio processing powered by [librosa](https://librosa.org/)
+
+## Troubleshooting
+
+### Common Issues
+
+#### Python Version
+Make sure you have Python 3.10 or higher:
+```bash
+python --version
+```
+
+#### Virtual Environment Issues
+If you encounter permission errors or import issues:
+```bash
+# Deactivate any existing environment
+deactivate
+
+# Remove and recreate virtual environment
+rm -rf venv
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+```
+
+#### uv Issues
+If uv sync fails:
+```bash
+# Clear uv cache
+uv cache clean
+
+# Try again
+uv sync
+```
+
+#### Dependencies Issues
+If you encounter dependency conflicts:
+```bash
+# With uv
+uv sync --reinstall
+
+# With pip
+pip install --upgrade pip
+pip install -r requirements.txt --force-reinstall
+```
+
+## Support
+
+- 📖 [Documentation](docs/README.md)
+- 🐛 [Issue Tracker](https://github.com/your-username/asr-interface/issues)
+- 💬 [Discussions](https://github.com/your-username/asr-interface/discussions)
