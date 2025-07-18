@@ -11,42 +11,11 @@ A modern, modular real-time Automatic Speech Recognition (ASR) interface with su
 - 🎤 **Real-time ASR**: Live transcription via WebRTC audio streaming
 - 📁 **File Upload**: Upload and transcribe audio files
 - 🔄 **Modular Architecture**: Easy integration of custom ASR backends
-- 📊 **Model Evaluation**: Compare ASR performance with reference transcripts
 - 🌐 **Web Interface**: Modern, responsive web UI for configuration and monitoring
-- 🖥️ **CLI Interface**: Command-line tools for server management
-- ⚡ **High Performance**: Optimized for low-latency real-time processing by relying on WebRTC
+- ⚡ **High Performance**: Optimized for low-latency real-time processing by relying on WebRTC implemented via HuggingFace FastRTC library.
 
 ## Quick Start
 
-### Environment Setup
-
-Before installing the ASR Interface, you need to set up a Python environment:
-
-#### Option 1: Using uv (Recommended)
-
-uv is a fast Python package installer and resolver. It automatically creates virtual environments and manages dependencies.
-
-```bash
-# Install uv globally
-pip install uv
-
-# uv will automatically create a virtual environment when you run uv sync
-```
-
-#### Option 2: Using venv (Traditional)
-
-If you prefer the traditional approach with venv:
-
-```bash
-# Create a virtual environment
-python -m venv venv
-
-# Activate it (macOS/Linux)
-source venv/bin/activate
-
-# Or on Windows
-# venv\Scripts\activate
-```
 
 ### Installation
 
