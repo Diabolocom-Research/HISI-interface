@@ -201,5 +201,8 @@ config.local.*
 .DS_Store
 Thumbs.db
 
+# Gradio
+.gradio/
+
 # uv
 .uv/ 
