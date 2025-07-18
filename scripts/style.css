@@ -673,6 +673,23 @@ thead th {
     font-size: 17px;
 }
 
+.icon_container {
+    background-color: #F1F5F9;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 12px 12px;
+    margin-bottom: 10px;
+}
+
+.icon_container img{
+    width: 53px;
+}
+
+#no-waveform-message-playback{
+    margin-top: 2em;
+}
 .no-file-message-table p:not(:first-of-type) {
     font-size: 14px;
     margin-top: 3px;

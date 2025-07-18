@@ -10,25 +10,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Whisper Transcription: Configure Model</title>
     <link rel="stylesheet" href="/static/scripts/style.css?v=20">
-    <style>
-        .icon_container {
-            background-color: #F1F5F9;
-            border-radius: 50%;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 12px 12px;
-            margin-bottom: 10px;
-        }
-
-        .icon_container img{
-            width: 53px;
-        }
-
-        #no-waveform-message-playback{
-            margin-top: 2em;
-        }
-    </style>
 </head>
 <body>
     <div id="view-model-selection">
@@ -139,10 +120,10 @@
                             </div>
 
                             <div class="right_controls">
-                                <div class="img_container">
+                                <div class="img_container" style="cursor: default;">
                                     <p id="progress" class="audio_duration">00:00:00</p>
                                 </div>
-                                <div class="total_duration_container">
+                                <div class="total_duration_container" style="cursor: default;">
                                     <p class="total_audio_duration_record">00:00:00</p>
                                 </div>
                             </div>
@@ -201,14 +182,12 @@
                         <div id="waveform" style="margin-top: 1em; display: none;" ></div>
                         
                         <div class="controls-audio-upload">
-                                <div class="img_container" style="margin-left: 10px;">
-                                    <label for="audio_file" class="custom-file-upload">
-                                        <img src="/static/assets/upload_black_icon_48.png" style="width: 18px; height: 18px;" alt="upload">
-                                    </label>
+                                <label for="audio_file" class="custom-file-upload img_container" style="margin-left: 10px; cursor: pointer;">
+                                    <img src="/static/assets/upload_black_icon_48.png" style="width: 18px; height: 18px;" alt="upload">
                                     <input type="file" name="audio_file" id="audio_file" accept="audio/*" required style="display: none;">      
-                                </div>
-                                <div class="img_container" style="margin-left: 2px;">
-                                    <img src="/static/assets/reload_black_icon_48.png" style="width: 18px; height: 18px;" id="resetDataBtn" alt="">
+                                </label>
+                                <div class="img_container" style="margin-left: 2px;" id="resetDataBtn">
+                                    <img src="/static/assets/reload_black_icon_48.png" style="width: 18px; height: 18px;"  alt="">
                                 </div>
 
                                 <div class="left_controls">
@@ -222,13 +201,13 @@
                                 </div>
 
                                 <div class="right_controls">
-                                    <div class="img_container">
+                                    <div class="img_container" style="cursor: default;">
                                         <p class="zoom_level">0.5x</p>
                                     </div>
-                                    <div class="img_container">
+                                    <div class="img_container" style="cursor: default;">
                                         <p id="progress_upload" class="current_duration">00:00:00</p>
                                     </div>
-                                    <div class="total_duration_container">
+                                    <div class="total_duration_container" style="cursor: default;">
                                         <p class="total_audio_duration">00:00:00</p>
                                     </div>
                                 </div>
@@ -283,9 +262,9 @@
     </div>
 
     <!-- Script for managing audio recording -->
-    <script src="/static/scripts/audio_recording_script.js?v=2"></script>
+    <script src="/static/scripts/audio_recording_script.js?v=6"></script>
     <!-- Script for managing audio file upload -->
-    <script src="/static/scripts/audio_file_script.js?v=2" type="module"></script>
+    <script src="/static/scripts/audio_file_script.js?v=5" type="module"></script>
     <!-- Script to manage wavesufer library -->
     <script src="/static/scripts/wavesurfers.js?v=2" type="module"></script>
     <script>
