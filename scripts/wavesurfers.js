@@ -45,22 +45,6 @@ let lastWaveformZoom = 100;
 let mousePosition = null;
 let zoomTimeout = null;
 
-// --- Utility Functions ---
-
-/**
- * Updates the progress display with formatted time.
- * @param {number} time - Current time in milliseconds.
- */
-const updateProgress = (time) => {
-    const formattedTime = [
-        Math.floor((time % 3600000) / 60000),
-        Math.floor((time % 60000) / 1000),
-    ]
-        .map((v) => (v < 10 ? '0' + v : v))
-        .join(':');
-    document.querySelector('#progress').textContent = formattedTime;
-};
-
 // --- WaveSurfer Event Handlers ---
 
 /**
@@ -68,7 +52,9 @@ const updateProgress = (time) => {
  * @param {number} currentTime - The current playback time in seconds.
  */
 function onAudioProcess(currentTime) {
-    const formattedTime = new Date(currentTime * 1000).toISOString().substr(11, 8);
+    const mins = Math.floor(currentTime / 60);
+    const secs = currentTime % 60;
+    const formattedTime = `${mins.toString().padStart(2, '0')}:${secs.toFixed(3).padStart(6, '0')}`;
     document.querySelector('.audio_duration').textContent = formattedTime;
     if (window.timeline) {
         window.timeline.setCustomTime(currentTime * 1000, 'cursor');
@@ -180,8 +166,9 @@ const createWaveSurfer = () => {
 
             const duration = lastRecordedWaveSurfer.getDuration();
             const minutes = Math.floor(duration / 60);
-            const seconds = Math.floor(duration % 60).toString().padStart(2, '0');
-            total_audio_duration_record.textContent = `${minutes}:${seconds}`;
+            const seconds = duration % 60;
+            const formattedDuration = `${minutes.toString().padStart(2, '0')}:${seconds.toFixed(3).padStart(6, '0')}`;
+            total_audio_duration_record.textContent = formattedDuration;
 
             // Add regions to the recorded waveform based on transcribed segments
             if (window.segments && Array.isArray(window.segments)) {
@@ -221,9 +208,10 @@ const createWaveSurfer = () => {
                 window.timeline.setCustomTime(currentTime * 1000, 'cursor');
                 window.timeline.moveTo(currentTime * 1000, { animation: false });
             }
-            const minutes = Math.floor(currentTime / 60);
-            const seconds = Math.floor(currentTime % 60).toString().padStart(2, '0');
-            document.querySelector('.audio_duration').textContent = `${minutes}:${seconds}`;
+            const mins = Math.floor(currentTime / 60);
+            const secs = currentTime % 60;
+            const formattedTime = `${mins.toString().padStart(2, '0')}:${secs.toFixed(3).padStart(6, '0')}`;
+            document.querySelector('.audio_duration').textContent = formattedTime;
         });
 
         // When playback is active, update the timeline cursor

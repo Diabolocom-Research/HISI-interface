@@ -39,14 +39,14 @@ const defaultConfig = {
 // --- Utility Functions ---
 
 /**
- * Formats time in seconds to MM:SS string.
+ * Formats time in seconds to MM:SS.SSS string for precise timing.
  * @param {number} seconds - The time in seconds.
  * @returns {string} Formatted time string.
  */
 function formatTime(seconds) {
     const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toFixed(3).padStart(6, '0')}`;
 }
 
 /**
@@ -85,7 +85,7 @@ function getRandomColor() {
 // --- Recording Timer Functions ---
 
 /**
- * Starts the recording timer, updating the display every second.
+ * Starts the recording timer, updating the display every 100ms for precision.
  */
 function startRecordingTimer() {
     const timerElement = document.getElementById('recording-timer');
@@ -95,9 +95,11 @@ function startRecordingTimer() {
     recordingStartTime = Date.now();
 
     recordingTimer = setInterval(() => {
-        recordingDuration = Math.floor((Date.now() - recordingStartTime) / 1000);
-        timerElement.textContent = formatTime(recordingDuration);
-    }, 1000);
+        const recordingDurationMs = Date.now() - recordingStartTime;
+        const recordingDurationSeconds = recordingDurationMs / 1000;
+        recordingDuration = Math.floor(recordingDurationSeconds); // Keep this in seconds for compatibility
+        timerElement.textContent = formatTime(recordingDurationSeconds);
+    }, 100); // Update every 100ms for smoother display
 }
 
 /**
@@ -256,8 +258,8 @@ function resetRecordingData() {
         controlsContainer.style.display = 'none';
     }
 
-    document.querySelector('.audio_duration').textContent = '00:00';
-    document.querySelector('.total_audio_duration_record').textContent = '00:00';
+    document.querySelector('.audio_duration').textContent = '00:00.000';
+    document.querySelector('.total_audio_duration_record').textContent = '00:00.000';
 
     const playBtn = document.querySelector('.play_btn');
     if (playBtn) {
@@ -414,6 +416,9 @@ async function setupWebRTC() {
 
         stream.getTracks().forEach(track => peerConnection.addTrack(track, stream));
 
+        // Create data channel for communication
+        const dataChannel = peerConnection.createDataChannel('text');
+
         peerConnection.addEventListener('connectionstatechange', () => {
             if (peerConnection.connectionState === 'connected') {
                 transcriptTextElement.textContent = historicalTranscript;
@@ -423,7 +428,6 @@ async function setupWebRTC() {
             updateButtonState();
         });
 
-        const dataChannel = peerConnection.createDataChannel('text');
         const offer = await peerConnection.createOffer();
         await peerConnection.setLocalDescription(offer);
 
