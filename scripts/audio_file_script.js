@@ -31,13 +31,14 @@ const colors = [
 // --- Utility Functions ---
 
 /**
- * Formats time in seconds to HH:mm:ss string.
+ * Formats time in seconds to MM:SS.SSS string for precise timing.
  * @param {number} seconds - The time in seconds.
  * @returns {string} Formatted time string.
  */
 function formatTime(seconds) {
-    const date = new Date(seconds * 1000);
-    return date.toISOString().substr(11, 8);
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toFixed(3).padStart(6, '0')}`;
 }
 
 /**
@@ -87,7 +88,7 @@ function resetAllData() {
     addedSegmentKeysTable = new Set();
     colorIndex = 0;
 
-    document.getElementById('progress_upload').textContent = '00:00:00';
+    document.getElementById('progress_upload').textContent = '00:00.000';
 
     const transcriptBtn = document.getElementById('start-trasncript-btn');
     if (transcriptBtn) {
@@ -229,7 +230,9 @@ const createWaveSurfer = () => {
         const currentTime = wavesurfer.getCurrentTime();
         timeline.setCustomTime(currentTime * 1000, 'cursor');
         timeline.moveTo(currentTime * 1000, { animation: false });
-        const formattedTime = new Date(currentTime * 1000).toISOString().substr(11, 8);
+        const mins = Math.floor(currentTime / 60);
+        const secs = currentTime % 60;
+        const formattedTime = `${mins.toString().padStart(2, '0')}:${secs.toFixed(3).padStart(6, '0')}`;
         document.getElementById('progress_upload').textContent = formattedTime;
     });
 };
@@ -239,7 +242,9 @@ const createWaveSurfer = () => {
  * @param {number} currentTime - The current playback time in seconds.
  */
 function onAudioProcess(currentTime) {
-    const formattedTime = new Date(currentTime * 1000).toISOString().substr(11, 8);
+    const mins = Math.floor(currentTime / 60);
+    const secs = currentTime % 60;
+    const formattedTime = `${mins.toString().padStart(2, '0')}:${secs.toFixed(3).padStart(6, '0')}`;
     document.getElementById('progress_upload').textContent = formattedTime;
     if (window.timeline2 && isTranscribing === false) { // Assuming window.timeline2 is the correct reference
         window.timeline2.setCustomTime(currentTime * 1000, 'cursor');
@@ -319,7 +324,9 @@ document.getElementById('audio_file').addEventListener('change', function(e) {
 
     wavesurfer.once('ready', () => {
         const duration = wavesurfer.getDuration();
-        const formattedDuration = new Date(duration * 1000).toISOString().substr(11, 8);
+        const mins = Math.floor(duration / 60);
+        const secs = duration % 60;
+        const formattedDuration = `${mins.toString().padStart(2, '0')}:${secs.toFixed(3).padStart(6, '0')}`;
         document.querySelector('.total_audio_duration').textContent = formattedDuration;
 
         if (timeline) {
@@ -354,6 +361,7 @@ function updateSegmentsTable(newSegments) {
         if (!addedSegmentKeysTable.has(key)) {
             const row = document.createElement('tr');
             const duration = segment.end - segment.start;
+            console.log('Adding segment:', segment.start, segment.end, segment.text, duration);
             row.innerHTML = `
                 <td class="time-cell">${formatTime(segment.start)}</td>
                 <td class="time-cell">${formatTime(segment.end)}</td>
