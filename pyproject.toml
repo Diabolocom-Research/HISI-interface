@@ -9,7 +9,7 @@ description = "Real-time Automatic Speech Recognition (ASR) interface with modul
 readme = "README.md"
 license = {text = "MIT"}
 authors = [
-    {name = "ASR Interface Contributors"}
+    {name = "Diabolocom Researchers"}
 ]
 keywords = ["asr", "speech-recognition", "realtime", "whisper", "webrtc"]
 classifiers = [

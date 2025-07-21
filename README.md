@@ -37,6 +37,9 @@ pip install uv
 # Create virtual environment and install dependencies
 uv sync
 
+# Start the virtual env
+source .venv/bin/activate
+
 # Install the package in development mode
 uv pip install -e .
 ```
