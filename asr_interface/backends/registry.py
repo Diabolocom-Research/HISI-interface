@@ -23,6 +23,15 @@ except ImportError:
     # MLX Whisper not available, skip it
     pass
 
+# Try to import Whisper loader (standard OpenAI Whisper, permissive license)
+try:
+    from .whisper_loader import WhisperLoader
+
+    MODEL_LOADERS["whisper"] = WhisperLoader()
+except ImportError:
+    # Whisper not available, skip it
+    pass
+
 
 def register_loader(name: str, loader: ModelLoader) -> None:
     """

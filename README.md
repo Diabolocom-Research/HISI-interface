@@ -14,6 +14,14 @@ A modern, modular real-time Automatic Speech Recognition (ASR) interface with su
 - 🌐 **Web Interface**: Modern, responsive web UI for configuration and monitoring
 - ⚡ **High Performance**: Optimized for low-latency real-time processing by relying on WebRTC implemented via HuggingFace FastRTC library.
 
+## Supported ASR Backends
+
+- **Whisper Timestamped** (word-level timestamps, non-permissive license)
+- **MLX Whisper** (Apple Silicon optimized, word-level timestamps)
+- **Whisper (OpenAI official)** (segment-level timestamps, permissive license)
+
+To use the standard OpenAI Whisper backend, set `backend: "whisper"` in your configuration (see below).
+
 ## Quick Start
 
 
@@ -198,6 +206,18 @@ class MyCustomRealTimeEngine(ASRProcessor):
 ```
 
 For detailed integration guides, see [docs/INTEGRATION_GUIDE.md](docs/INTEGRATION_GUIDE.md).
+
+### Example: Selecting a Backend
+
+In your configuration (e.g., `ASRConfig`):
+
+```python
+backend = "whisper"  # For standard OpenAI Whisper
+# or
+backend = "mlx_whisper"  # For MLX Whisper
+# or
+backend = "whisper_timestamped"  # For Whisper Timestamped
+```
 
 ## Development
 
