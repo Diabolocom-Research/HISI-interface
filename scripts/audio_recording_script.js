@@ -505,7 +505,7 @@ function handleServerUpdate(data) {
                 <td style="max-width: 300px; word-wrap: break-word;">${segment.text}</td>
                 <td>
                     <div class="segment-actions">
-                        <button class="segment-btn segment-btn-play" data-start="${segment.start}" data-end="${segment.end}" title="Play segment">
+                        <button class="segment-btn segmetn-play" data-start="${segment.start}" data-end="${segment.end}" title="Play segment">
                             <img src="static/assets/play_black_icon_48.png" alt="Play">
                         </button>
                     </div>
@@ -623,6 +623,18 @@ function addRegionsToRecordedWaveform() {
  * Stops the WebRTC connection and finalizes the recording process.
  */
 function stop() {
+    
+
+    console.log("🐛 stop");
+    // Call backend to reset handler state
+    fetch('reset_handler', { method: 'POST' })
+        .then(response => response.json())
+        .then(data => console.log('Backend handler reset:', data))
+        .catch(err => console.warn('Failed to reset backend handler:', err));
+
+    console.log("🐛 reset handler called");
+
+
     if (peerConnection) {
         peerConnection.getSenders().forEach(sender => sender.track?.stop());
         peerConnection.close();
@@ -633,6 +645,8 @@ function stop() {
         eventSource.close();
         eventSource = null; // Clear reference
     }
+
+    
 
     if (transcriptTextElement && transcriptTextElement.textContent.trim() !== historicalTranscript.trim()) {
         historicalTranscript = transcriptTextElement.textContent + "\n\n";
@@ -704,8 +718,10 @@ startButton.addEventListener('click', () => {
         return;
     }
     if (!peerConnection || peerConnection.connectionState === "closed") {
+        console.log("🐛 stop called");
         setupWebRTC();
     } else {
+        console.log("🐛 stop called");
         stop();
     }
 });

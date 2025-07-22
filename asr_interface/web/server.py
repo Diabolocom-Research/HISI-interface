@@ -6,7 +6,7 @@ import logging
 from typing import Any
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
-from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastrtc import Stream
 from jiwer import cer, wer
@@ -20,6 +20,23 @@ from ..utils.audio import SAMPLING_RATE, load_audio_from_bytes
 from ..utils.turn_server import get_rtc_credentials
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+
+
+class NoCacheStaticFiles(StaticFiles):
+    """Custom StaticFiles class that adds no-cache headers to all responses."""
+
+    async def get_response(self, path: str, scope) -> Response:
+        response = await super().get_response(path, scope)
+
+        # Add no-cache headers to prevent caching
+        response.headers["Cache-Control"] = (
+            "no-cache, no-store, must-revalidate, max-age=0"
+        )
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+
+        return response
 
 
 class ASRServer:
@@ -101,7 +118,8 @@ class ASRServer:
 
     def _setup_static_files(self) -> None:
         """Setup static file serving."""
-        self.app.mount("/static", StaticFiles(directory="."), name="static")
+        # self.app.mount("/static", StaticFiles(directory="."), name="static")
+        self.app.mount("/static", NoCacheStaticFiles(directory="."), name="static")
 
     def _setup_routes(self) -> None:
         """Setup API routes."""
@@ -261,6 +279,18 @@ class ASRServer:
                     status_code=500, detail=f"Evaluation failed: {str(e)}"
                 )
 
+        @self.app.post("/reset_handler")
+        async def reset_handler():
+            logger.info("Resetting ASR handler state via /api/reset_handler endpoint.")
+            """Reset the ASR handler state for the current session (global for now)."""
+            if self.store.asr_processor:
+                self.store.asr_processor.init(offset=0.0)
+                logger.info("ASR handler state reset via /api/reset_handler endpoint.")
+                return {"status": "success", "message": "ASR handler reset."}
+            else:
+                logger.warning("No ASR processor to reset in /api/reset_handler.")
+                return {"status": "no-op", "message": "No ASR processor to reset."}
+
         @self.app.get("/")
         async def index():
             """Serve the main interface."""
@@ -272,7 +302,14 @@ class ASRServer:
                 "##RTC_CONFIGURATION##", json.dumps(self.rtc_config)
             )
 
-            return HTMLResponse(content=html_content)
+            return HTMLResponse(
+                content=html_content,
+                headers={
+                    "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+                    "Pragma": "no-cache",
+                    "Expires": "0",
+                },
+            )
 
         @self.app.get("/transcript")
         async def transcript_endpoint(webrtc_id: str):
@@ -280,6 +317,8 @@ class ASRServer:
             logger.debug(f"New transcript stream request for {webrtc_id}")
 
             async def output_stream_generator():
+                logger.debug("🐛 debug logging is live!")
+                logger.info("✅ info logging is live!")
                 try:
                     async for output in self.stream.output_stream(webrtc_id):
                         payload = {
