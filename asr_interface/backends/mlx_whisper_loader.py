@@ -49,17 +49,11 @@ class MLXWhisper(ASRBase):
 
         self.model_size_or_path = model_size_or_path
 
-        # Note: ModelHolder.get_model loads the model into a static class variable,
-        # making it a global resource. This means:
-        # - Only one model can be loaded at a time; switching models requires reloading.
-        # - This approach may not be suitable for scenarios requiring multiple models simultaneously,
-        #   such as using whisper-streaming as a module with varying model sizes.
-        dtype = (
-            mx.float16
-        )  # Default to mx.float16. In mlx_whisper.transcribe: dtype = mx.float16 if decode_options.get("fp16", True) else mx.float32
-        ModelHolder.get_model(
+        dtype = mx.float16
+        self.model = ModelHolder.get_model(
             model_size_or_path, dtype
-        )  # Model is preloaded to avoid reloading during transcription
+        )  # Store the actual model object
+        # Do NOT return transcribe
 
         return transcribe
 
@@ -92,27 +86,25 @@ class MLXWhisper(ASRBase):
         return model_mapping.get(model_name, model_name)
 
     def transcribe(self, audio, init_prompt=""):
-        from mlx_whisper.transcribe import transcribe
-
-        result = transcribe(
-            self.model, audio, initial_prompt=init_prompt, **self.transcribe_kargs
+        result = self.model(
+            audio,
+            initial_prompt=init_prompt,
+            word_timestamps=True,
+            **self.transcribe_kargs,
         )
-        return result
+        return result.get("segments", [])
 
     def ts_words(self, segments):
         # return: transcribe result object to [(beg,end,"word1"), ...]
-        o = []
-        for s in segments:
-            for w in s["words"]:
-                t = (w["start"], w["end"], w["text"])
-                o.append(t)
-        return o
+        return [
+            (word["start"], word["end"], word["word"])
+            for segment in segments
+            for word in segment.get("words", [])
+            if segment.get("no_speech_prob", 0) <= 0.9
+        ]
 
     def segments_end_ts(self, res):
-        return [s["end"] for s in res["segments"]]
-
-    def use_vad(self):
-        self.transcribe_kargs["vad"] = True
+        return [s["end"] for s in res]
 
 
 class MLXWhisperLoader(ModelLoader):

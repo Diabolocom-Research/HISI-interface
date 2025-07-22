@@ -5,14 +5,6 @@ from ..core.protocols import ModelLoader
 # Registry of available model loaders
 MODEL_LOADERS: dict[str, ModelLoader] = {}
 
-# Try to import Whisper Timestamped loader (optional dependency)
-try:
-    from .whisper_timestamped_loader import WhisperTimestampedLoader
-
-    MODEL_LOADERS["whisper_timestamped"] = WhisperTimestampedLoader()
-except ImportError:
-    # Whisper Timestamped not available, skip it
-    pass
 
 # Try to import MLX Whisper loader (optional dependency)
 try:

@@ -25,15 +25,17 @@ logger = logging.getLogger(__name__)
 
 class NoCacheStaticFiles(StaticFiles):
     """Custom StaticFiles class that adds no-cache headers to all responses."""
-    
+
     async def get_response(self, path: str, scope) -> Response:
         response = await super().get_response(path, scope)
-        
+
         # Add no-cache headers to prevent caching
-        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+        response.headers["Cache-Control"] = (
+            "no-cache, no-store, must-revalidate, max-age=0"
+        )
         response.headers["Pragma"] = "no-cache"
         response.headers["Expires"] = "0"
-        
+
         return response
 
 
@@ -314,8 +316,6 @@ class ASRServer:
             logger.debug(f"New transcript stream request for {webrtc_id}")
 
             async def output_stream_generator():
-                logger.debug("🐛 debug logging is live!")
-                logger.info("✅ info logging is live!")
                 try:
                     async for output in self.stream.output_stream(webrtc_id):
                         payload = {

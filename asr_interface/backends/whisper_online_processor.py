@@ -282,6 +282,7 @@ class OnlineASRProcessor(ASRProcessor):
 
         except Exception as e:
             logger.warning(f"Failed to trim buffer by segment: {e}")
+            print(asr_result)
             # Fall back to simple trimming
             self._apply_fallback_trim(True)
 

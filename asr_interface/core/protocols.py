@@ -170,9 +170,9 @@ class ASRBase(ABC):
         """
         raise NotImplementedError("must be implemented in the child class")
 
-    @abstractmethod
-    def use_vad(self):
-        """
-        Enables Voice Activity Detection (VAD) for the ASR model, if supported.
-        """
-        raise NotImplementedError("must be implemented in the child class")
+    # @abstractmethod
+    # def use_vad(self):
+    #     """
+    #     Enables Voice Activity Detection (VAD) for the ASR model, if supported.
+    #     """
+    #     raise NotImplementedError("must be implemented in the child class")

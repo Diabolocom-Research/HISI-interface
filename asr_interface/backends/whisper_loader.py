@@ -35,6 +35,7 @@ class WhisperASR(ASRBase):
             audio,
             language=self.original_language,
             initial_prompt=init_prompt,
+            word_timestamps=True,
             verbose=None,
             condition_on_previous_text=True,
             **self.transcribe_kargs,
@@ -45,9 +46,11 @@ class WhisperASR(ASRBase):
         # OpenAI Whisper does not provide word-level timestamps, only segment-level
         # We'll map each segment to a single word covering the whole segment
         o = []
-        for s in r["segments"]:
-            t = (s["start"], s["end"], s["text"].strip())
-            o.append(t)
+        for segment in r["segments"]:
+            if segment.get("no_speech_prob", 0) <= 0.9:
+                for word in segment.get("words", []):
+                    t = (word["start"], word["end"], word["word"])
+                    o.append(t)
         return o
 
     def segments_end_ts(self, res):
