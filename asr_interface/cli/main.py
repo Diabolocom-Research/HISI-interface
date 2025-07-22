@@ -23,6 +23,15 @@ app = typer.Typer(
 console = Console()
 
 
+class NoCacheStaticFiles(StaticFiles):
+    async def get_response(self, path: str, scope):
+        response: Response = await super().get_response(path, scope)
+        response.headers["Cache-Control"] = "no-store"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+        return response
+
+
 def setup_logging(verbose: bool = False) -> None:
     """
     Setup logging configuration.
@@ -46,7 +55,7 @@ def serve(
     port: int = typer.Option(8000, "--port", "-p", help="Port to bind to"),
     reload: bool = typer.Option(False, "--reload", help="Enable auto-reload"),
     verbose: bool = typer.Option(
-        False, "--verbose", "-v", help="Enable verbose logging"
+        True, "--verbose", "-v", help="Enable verbose logging"
     ),
     config_file: Path | None = typer.Option(
         None, "--config", "-c", help="Path to configuration file"
@@ -86,6 +95,7 @@ def serve(
             port=port,
             reload=reload,
             log_level="debug" if verbose else "info",
+            log_config=None,
         )
 
     except KeyboardInterrupt:

@@ -10,7 +10,7 @@ from fastrtc import AdditionalOutputs, StreamHandler
 from ..core.protocols import ASRProcessor
 from ..core.store import ASRComponentsStore
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger()
 
 
 class RealTimeASRHandler(StreamHandler):
@@ -60,6 +60,9 @@ class RealTimeASRHandler(StreamHandler):
         logger.info(
             f"Handler instance [{self.handler_id}] created. Waiting for processor."
         )
+
+        if self.asr_processor:
+            self.asr_processor.init(offset=0.0)
         self._ensure_processor()
 
     def _ensure_processor(self) -> None:
@@ -88,7 +91,7 @@ class RealTimeASRHandler(StreamHandler):
             self.last_used_config_id = config_id
             self._reset_instance_state()
             logger.info(
-                f"Handler [{self.handler_id}] - Processor acquired successfully."
+                f"Handler [{self.handler_id}] - Processor acquired and reset successfully."
             )
         else:
             # If no processor is ready, ensure we don't hold onto an old one
@@ -100,6 +103,7 @@ class RealTimeASRHandler(StreamHandler):
         self.accumulated_transcript = ""
         self.segments = []
         self.full_audio = np.zeros((0,), dtype=np.float32)
+        self.asr_processor.init(offset=0.0)
 
     def receive(self, frame: tuple[int, np.ndarray]) -> None:
         """
@@ -138,6 +142,7 @@ class RealTimeASRHandler(StreamHandler):
         Returns:
             AdditionalOutputs: A data structure containing the full transcript and segments
         """
+        logger.info("here")
         if not self.asr_processor:
             return AdditionalOutputs("", np.array([], dtype=np.float32), [])
 
@@ -158,6 +163,10 @@ class RealTimeASRHandler(StreamHandler):
                 self.accumulated_transcript += separator + text_delta.strip()
             elif text_delta.strip():
                 self.accumulated_transcript = text_delta.strip()
+
+        logger.info(
+            f"Handler [{self.handler_id}] - Segments: {self.segments}", flush=True
+        )
 
         return AdditionalOutputs(
             self.accumulated_transcript, self.full_audio, self.segments
@@ -180,4 +189,6 @@ class RealTimeASRHandler(StreamHandler):
     def shutdown(self) -> None:
         """Clean up resources when a client connection is closed."""
         logger.info(f"Handler [{self.handler_id}] shutting down.")
+        if self.asr_processor:
+            self.asr_processor.init(offset=0.0)
         self.asr_processor = None

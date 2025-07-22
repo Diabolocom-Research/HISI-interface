@@ -328,12 +328,11 @@ document.getElementById('audio_file').addEventListener('change', function(e) {
         const secs = duration % 60;
         const formattedDuration = `${mins.toString().padStart(2, '0')}:${secs.toFixed(3).padStart(6, '0')}`;
         document.querySelector('.total_audio_duration').textContent = formattedDuration;
-
-        if (timeline) {
-            timeline.setOptions({
+        
+        if (window.timeline2) {
+            window.timeline2.setOptions({
                 max: duration * 1000 + 1000,
             });
-            timeline.moveTo(1);
             lastWaveformZoom = 100;
         }
     });
@@ -361,7 +360,6 @@ function updateSegmentsTable(newSegments) {
         if (!addedSegmentKeysTable.has(key)) {
             const row = document.createElement('tr');
             const duration = segment.end - segment.start;
-            console.log('Adding segment:', segment.start, segment.end, segment.text, duration);
             row.innerHTML = `
                 <td class="time-cell">${formatTime(segment.start)}</td>
                 <td class="time-cell">${formatTime(segment.end)}</td>
@@ -543,7 +541,6 @@ async function startTranscription() {
         if (match) {
             try {
                 const data = JSON.parse(match[1]);
-                console.log('Received data:', data);
                 handleTranscriptionEvent(data);
             } catch (e) {
                 console.error('JSON parse error:', e, match[1]);
@@ -559,6 +556,9 @@ async function startTranscription() {
     displayRTF(rtf, processingTimeSeconds, audioDuration);
     updateTimeline(segments);
     isTranscribing = false;
+   
+    window.timeline2.focus(0);
+    
     document.getElementById('start-trasncript-btn').textContent = 'Start Transcription';
 }
 
@@ -613,14 +613,13 @@ function initTimeline() {
  * @param {Array<Object>} newSegments - An array of new segment objects.
  */
 function updateTimeline(newSegments) {
-    console.log('Updating timeline with new segments:', typeof(newSegments), newSegments);
     if (!timelineItems) return;
 
-    newSegments.forEach((segment) => {
+    newSegments.forEach((segment, idx) => {
         const key = `${segment.start}-${segment.end}`;
         if (!addedSegmentKeys.has(key)) {
             timelineItems.add({
-                id: key,
+                id: idx,
                 content: segment.text,
                 start: segment.start * 1000,
                 end: segment.end * 1000,

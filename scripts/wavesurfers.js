@@ -59,7 +59,6 @@ function onAudioProcess(currentTime) {
     if (window.timeline) {
         // Convert seconds to milliseconds and round to whole number
         const timeInMs = Math.round(currentTime * 1000);
-        console.log('Current Time:', currentTime, 'ms:', timeInMs);
         window.timeline.setCustomTime(timeInMs, 'cursor');
         window.timeline.moveTo(timeInMs, { animation: false });
     }
@@ -209,7 +208,6 @@ const createWaveSurfer = () => {
             const currentTime = lastRecordedWaveSurfer.getCurrentTime();
             if (window.timeline) {
                 const timeInMs = Math.round(currentTime * 1000);
-                console.log('Current Time:', currentTime, 'ms:', timeInMs);
                 window.timeline.setCustomTime(timeInMs, 'cursor');
                 window.timeline.moveTo(timeInMs, { animation: false });
             }

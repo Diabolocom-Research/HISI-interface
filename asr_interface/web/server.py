@@ -6,7 +6,7 @@ import logging
 from typing import Any
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
-from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.responses import Response
 from fastrtc import Stream
@@ -276,6 +276,18 @@ class ASRServer:
                     status_code=500, detail=f"Evaluation failed: {str(e)}"
                 )
 
+        @self.app.post("/reset_handler")
+        async def reset_handler():
+            logger.info("Resetting ASR handler state via /api/reset_handler endpoint.")
+            """Reset the ASR handler state for the current session (global for now)."""
+            if self.store.asr_processor:
+                self.store.asr_processor.init(offset=0.0)
+                logger.info("ASR handler state reset via /api/reset_handler endpoint.")
+                return {"status": "success", "message": "ASR handler reset."}
+            else:
+                logger.warning("No ASR processor to reset in /api/reset_handler.")
+                return {"status": "no-op", "message": "No ASR processor to reset."}
+
         @self.app.get("/")
         async def index():
             """Serve the main interface."""
@@ -287,7 +299,14 @@ class ASRServer:
                 "##RTC_CONFIGURATION##", json.dumps(self.rtc_config)
             )
 
-            return HTMLResponse(content=html_content)
+            return HTMLResponse(
+                content=html_content,
+                headers={
+                    "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+                    "Pragma": "no-cache",
+                    "Expires": "0",
+                },
+            )
 
         @self.app.get("/transcript")
         async def transcript_endpoint(webrtc_id: str):
@@ -295,6 +314,8 @@ class ASRServer:
             logger.debug(f"New transcript stream request for {webrtc_id}")
 
             async def output_stream_generator():
+                logger.debug("🐛 debug logging is live!")
+                logger.info("✅ info logging is live!")
                 try:
                     async for output in self.stream.output_stream(webrtc_id):
                         payload = {

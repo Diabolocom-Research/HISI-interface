@@ -40,9 +40,6 @@ const defaultConfig = {
     "buffer_trimming_sec": 10.0
 };
 
-function hello() {
-    console.log("Hello from audio_recording_script.js!");
-}
 // --- Utility Functions ---
 
 /**
@@ -71,7 +68,7 @@ function updateTimelineCursor(timeInMs, forceUpdate = false) {
                 console.warn('Timeline update error:', error);
             }
         }
-    }, 50); // Small delay to batch updates
+    }, 50); 
 }
 
 /**
@@ -254,7 +251,8 @@ function resetRecordingData() {
 
     if (timelineItems) {
         timelineItems.clear();
-        timelineItems = new vis.DataSet([]); // Recreate the DataSet
+        timeline.setItems(timelineItems);
+        // timelineItems = new vis.DataSet([]); // Recreate the DataSet
     }
 
     if (timeline) {
@@ -463,9 +461,11 @@ async function setupWebRTC() {
         };
         
         dataChannel.onclose = () => {
-            console.log("Data channel closed - stopping audio tracks");
             // Stop audio tracks when data channel closes
             stream.getTracks().forEach(track => track.stop());
+            if (window.timeline) {
+                window.timeline.focus(0)
+            }
         };
         
         peerConnection.addEventListener('connectionstatechange', () => {
@@ -531,6 +531,7 @@ function waitForIceGatheringComplete(pc) {
         }
     });
 }
+
 /**
  * Handles incoming transcription updates from the server (SSE).
  * @param {string} data - JSON string containing transcription payload.
@@ -560,7 +561,7 @@ function handleServerUpdate(data) {
                 <td style="max-width: 300px; word-wrap: break-word;">${segment.text}</td>
                 <td>
                     <div class="segment-actions">
-                        <button class="segment-btn segment-btn-play" data-start="${segment.start}" data-end="${segment.end}" title="Play segment">
+                        <button class="segment-btn segment-play" data-start="${segment.start}" data-end="${segment.end}" title="Play segment">
                             <img src="static/assets/play_black_icon_48.png" alt="Play">
                         </button>
                     </div>
@@ -568,17 +569,15 @@ function handleServerUpdate(data) {
             `;
             segmentsTableBody.appendChild(row);
 
-            const playButton = row.querySelector('.segment-btn-play');
+            const playButton = row.querySelector('.segment-play');
             playButton.addEventListener('click', (e) => {
                 const btn = e.currentTarget;
                 const start = parseFloat(btn.getAttribute('data-start'));
                 const end = parseFloat(btn.getAttribute('data-end'));
-                console.log(`Playing segment from ${start} to ${end}`);
                 playSegment(start, end);
             });
         });
 
-        console.log("Received segments:", segments);
         updateTimeline(segments);
         showResetButtonIfNeeded();
 
@@ -680,6 +679,17 @@ function addRegionsToRecordedWaveform() {
  * Stops the WebRTC connection and finalizes the recording process.
  */
 function stop() {
+    
+    console.log("🐛 stop");
+    // Call backend to reset handler state
+    fetch('reset_handler', { method: 'POST' })
+        .then(response => response.json())
+        .then(data => console.log('Backend handler reset:', data))
+        .catch(err => console.warn('Failed to reset backend handler:', err));
+
+    console.log("🐛 reset handler called");
+
+
     if (peerConnection) {
         peerConnection.getSenders().forEach(sender => sender.track?.stop());
         peerConnection.close();
@@ -690,6 +700,8 @@ function stop() {
         eventSource.close();
         eventSource = null; // Clear reference
     }
+
+    
 
     if (transcriptTextElement && transcriptTextElement.textContent.trim() !== historicalTranscript.trim()) {
         historicalTranscript = transcriptTextElement.textContent + "\n\n";
@@ -761,8 +773,10 @@ startButton.addEventListener('click', () => {
         return;
     }
     if (!peerConnection || peerConnection.connectionState === "closed") {
+        console.log("🐛 stop called");
         setupWebRTC();
     } else {
+        console.log("🐛 stop called");
         stop();
     }
 });
