@@ -2,12 +2,11 @@
 
 from ..core.protocols import ASRBase
 from .registry import MODEL_LOADERS
-from .whisper_online_processor import SAMPLING_RATE, OnlineASRProcessor, asr_factory
+from .whisper_online_processor import SAMPLING_RATE, OnlineASRProcessor
 
 __all__ = [
     "ASRBase",
     "OnlineASRProcessor",
-    "asr_factory",
     "SAMPLING_RATE",
     "MODEL_LOADERS",
 ]

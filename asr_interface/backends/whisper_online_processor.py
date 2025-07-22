@@ -371,64 +371,64 @@ class OnlineASRProcessor(ASRProcessor):
         return (None, None, "")
 
 
-def asr_factory(config: ASRConfig) -> tuple[Any, OnlineASRProcessor]:
-    """
-    Create and configure ASR and OnlineASRProcessor instances.
+# def asr_factory(config: ASRConfig) -> tuple[Any, OnlineASRProcessor]:
+#     """
+#     Create and configure ASR and OnlineASRProcessor instances.
 
-    This factory creates the appropriate ASR backend based on the configuration
-    and initializes the online processor.
+#     This factory creates the appropriate ASR backend based on the configuration
+#     and initializes the online processor.
 
-    Args:
-        config: The ASR configuration containing model parameters.
+#     Args:
+#         config: The ASR configuration containing model parameters.
 
-    Returns:
-        A tuple containing the initialized ASR backend and the online ASR processor.
+#     Returns:
+#         A tuple containing the initialized ASR backend and the online ASR processor.
 
-    Raises:
-        ValueError: If an unsupported backend is specified.
-        RuntimeError: If model loading fails.
-    """
-    logger.info(
-        f"Creating ASR factory for model '{config.model}' with backend '{config.backend}'..."
-    )
+#     Raises:
+#         ValueError: If an unsupported backend is specified.
+#         RuntimeError: If model loading fails.
+#     """
+#     logger.info(
+#         f"Creating ASR factory for model '{config.model}' with backend '{config.backend}'..."
+#     )
 
-    # Import the appropriate backend based on configuration
-    if config.backend == "whisper_timestamped":
-        from .whisper_adapters import WhisperTimestampedAdapter
-        from .whisper_timestamped_loader import WhisperTimestampedProcessor
+#     # Import the appropriate backend based on configuration
+#     if config.backend == "whisper_timestamped":
+#         from .whisper_adapters import WhisperTimestampedAdapter
+#         from .whisper_timestamped_loader import WhisperTimestampedProcessor
 
-        processor = WhisperTimestampedProcessor(
-            model_size=config.model,
-            language=config.lan,
-            min_chunk_sec=config.min_chunk_size,
-        )
-        # Wrap the processor with the legacy-compatible adapter
-        asr = WhisperTimestampedAdapter(processor, original_language=config.lan)
+#         processor = WhisperTimestampedProcessor(
+#             model_size=config.model,
+#             language=config.lan,
+#             min_chunk_sec=config.min_chunk_size,
+#         )
+#         # Wrap the processor with the legacy-compatible adapter
+#         asr = WhisperTimestampedAdapter(processor, original_language=config.lan)
 
-    elif config.backend == "mlx-whisper":
-        from .mlx_whisper_loader import MLXWhisperProcessor
-        from .whisper_adapters import MLXWhisperAdapter
+#     elif config.backend == "mlx-whisper":
+#         from .mlx_whisper_loader import MLXWhisperProcessor
+#         from .whisper_adapters import MLXWhisperAdapter
 
-        processor = MLXWhisperProcessor(
-            model_size=config.model,
-            language=config.lan,
-            min_chunk_sec=config.min_chunk_size,
-        )
-        # Wrap the processor with the legacy-compatible adapter
-        asr = MLXWhisperAdapter(processor, original_language=config.lan)
+#         processor = MLXWhisperProcessor(
+#             model_size=config.model,
+#             language=config.lan,
+#             min_chunk_sec=config.min_chunk_size,
+#         )
+#         # Wrap the processor with the legacy-compatible adapter
+#         asr = MLXWhisperAdapter(processor, original_language=config.lan)
 
-    else:
-        raise ValueError(
-            f"Unsupported ASR backend: '{config.backend}'. "
-            f"Available backends are: whisper_timestamped, mlx-whisper"
-        )
+#     else:
+#         raise ValueError(
+#             f"Unsupported ASR backend: '{config.backend}'. "
+#             f"Available backends are: whisper_timestamped, mlx-whisper"
+#         )
 
-    # Create the online processor that wraps the ASR backend
-    online = OnlineASRProcessor(
-        asr=asr,
-        buffer_trimming=(config.buffer_trimming, int(config.buffer_trimming_sec)),
-        min_chunk_sec=config.min_chunk_size,
-    )
+#     # Create the online processor that wraps the ASR backend
+#     online = OnlineASRProcessor(
+#         asr=asr,
+#         buffer_trimming=(config.buffer_trimming, int(config.buffer_trimming_sec)),
+#         min_chunk_sec=config.min_chunk_size,
+#     )
 
-    logger.info("ASR factory created successfully")
-    return asr, online
+#     logger.info("ASR factory created successfully")
+#     return asr, online
