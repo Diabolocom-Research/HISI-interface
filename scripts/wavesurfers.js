@@ -57,8 +57,11 @@ function onAudioProcess(currentTime) {
     const formattedTime = `${mins.toString().padStart(2, '0')}:${secs.toFixed(3).padStart(6, '0')}`;
     document.querySelector('.audio_duration').textContent = formattedTime;
     if (window.timeline) {
-        window.timeline.setCustomTime(currentTime * 1000, 'cursor');
-        window.timeline.moveTo(currentTime * 1000, { animation: false });
+        // Convert seconds to milliseconds and round to whole number
+        const timeInMs = Math.round(currentTime * 1000);
+        console.log('Current Time:', currentTime, 'ms:', timeInMs);
+        window.timeline.setCustomTime(timeInMs, 'cursor');
+        window.timeline.moveTo(timeInMs, { animation: false });
     }
 }
 
@@ -205,8 +208,10 @@ const createWaveSurfer = () => {
         lastRecordedWaveSurfer.on('click', (e) => {
             const currentTime = lastRecordedWaveSurfer.getCurrentTime();
             if (window.timeline) {
-                window.timeline.setCustomTime(currentTime * 1000, 'cursor');
-                window.timeline.moveTo(currentTime * 1000, { animation: false });
+                const timeInMs = Math.round(currentTime * 1000);
+                console.log('Current Time:', currentTime, 'ms:', timeInMs);
+                window.timeline.setCustomTime(timeInMs, 'cursor');
+                window.timeline.moveTo(timeInMs, { animation: false });
             }
             const mins = Math.floor(currentTime / 60);
             const secs = currentTime % 60;

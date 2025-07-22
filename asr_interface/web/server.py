@@ -8,6 +8,7 @@ from typing import Any
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.responses import Response
 from fastrtc import Stream
 from jiwer import cer, wer
 
@@ -20,6 +21,20 @@ from ..utils.audio import SAMPLING_RATE, load_audio_from_bytes
 from ..utils.turn_server import get_rtc_credentials
 
 logger = logging.getLogger(__name__)
+
+
+class NoCacheStaticFiles(StaticFiles):
+    """Custom StaticFiles class that adds no-cache headers to all responses."""
+    
+    async def get_response(self, path: str, scope) -> Response:
+        response = await super().get_response(path, scope)
+        
+        # Add no-cache headers to prevent caching
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+        
+        return response
 
 
 class ASRServer:
@@ -100,8 +115,8 @@ class ASRServer:
             return self.rtc_config
 
     def _setup_static_files(self) -> None:
-        """Setup static file serving."""
-        self.app.mount("/static", StaticFiles(directory="."), name="static")
+        """Setup static file serving with no-cache headers."""
+        self.app.mount("/static", NoCacheStaticFiles(directory="."), name="static")
 
     def _setup_routes(self) -> None:
         """Setup API routes."""

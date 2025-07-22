@@ -11,6 +11,10 @@ let historicalTranscript = "";
 let transcriptionStartTime = null;
 let currentSegments = [];
 
+// Timeline update throttling
+let timelineUpdateTimeout = null;
+let lastTimelineUpdate = 0;
+
 // DOM References
 const progressElement = document.getElementById('progress');
 const viewModelSelection = document.getElementById('view-model-selection');
@@ -36,7 +40,39 @@ const defaultConfig = {
     "buffer_trimming_sec": 10.0
 };
 
+function hello() {
+    console.log("Hello from audio_recording_script.js!");
+}
 // --- Utility Functions ---
+
+/**
+ * Throttled timeline cursor update to prevent infinite redraw loops
+ * @param {number} timeInMs - Time in milliseconds
+ * @param {boolean} forceUpdate - Force update even if recently updated
+ */
+function updateTimelineCursor(timeInMs, forceUpdate = false) {
+    const now = Date.now();
+    
+    // Only update timeline cursor every 100ms to prevent infinite loops
+    if (!forceUpdate && (now - lastTimelineUpdate) < 100) {
+        return;
+    }
+    
+    if (timelineUpdateTimeout) {
+        clearTimeout(timelineUpdateTimeout);
+    }
+    
+    timelineUpdateTimeout = setTimeout(() => {
+        if (window.timeline) {
+            try {
+                window.timeline.setCustomTime(timeInMs, 'cursor');
+                lastTimelineUpdate = Date.now();
+            } catch (error) {
+                console.warn('Timeline update error:', error);
+            }
+        }
+    }, 50); // Small delay to batch updates
+}
 
 /**
  * Formats time in seconds to MM:SS.SSS string for precise timing.
@@ -225,7 +261,6 @@ function resetRecordingData() {
         timeline.setCustomTime(0, 'cursor');
         timeline.moveTo(0, { animation: false });
         timeline.setOptions({ max: 10000, start: 0, end: 10000 });
-        timeline.setItems(timelineItems); // Ensure timeline uses fresh DataSet
     }
 
     if (window.regions) {
@@ -270,6 +305,10 @@ function resetRecordingData() {
     currentSegments = [];
     recordingDuration = 0;
     transcriptionStartTime = null;
+    
+    // Reset timing-related variables to prevent timestamp offset issues
+    recordingStartTime = null;
+    webrtc_id = null;
 
     const rtfDisplay = document.getElementById('rtf-display-recording');
     if (rtfDisplay) {
@@ -358,11 +397,9 @@ function updateTimeline(segments) {
                 max: lastSegment.end * 1000 + 1000,
             });
         }
-    } else {
-        timeline.setOptions({ max: 10000 });
-        timeline.moveTo(0, { animation: false });
-    }
-    window.segments = segments; // Store segments globally
+    } 
+
+    window.segments = segments; 
 }
 
 // --- WebRTC and Transcription Logic ---
@@ -393,7 +430,7 @@ async function loadModel() {
         }
         document.title = "Whisper Transcription: Live";
         switchView('view-transcription');
-        window.createWaveSurfer(); // Assuming this is defined elsewhere and needed for playback
+        window.createWaveSurfer();
     } catch (err) {
         alert(`Error loading model: ${err.message}`);
         switchView('view-model-selection');
@@ -409,21 +446,38 @@ async function setupWebRTC() {
     document.getElementById('no-recording-message').style.display = 'none';
 
     try {
+        // Get user media FIRST - this is critical for proper WebRTC setup
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
         const config = window.RTC_CONFIGURATION;
         peerConnection = new RTCPeerConnection(config);
 
+        // Add audio tracks to the peer connection BEFORE creating offer
         stream.getTracks().forEach(track => peerConnection.addTrack(track, stream));
 
         // Create data channel for communication
         const dataChannel = peerConnection.createDataChannel('text');
 
+        dataChannel.onopen = () => {
+            console.log("Data channel open - ready for communication");
+        };
+        
+        dataChannel.onclose = () => {
+            console.log("Data channel closed - stopping audio tracks");
+            // Stop audio tracks when data channel closes
+            stream.getTracks().forEach(track => track.stop());
+        };
+        
         peerConnection.addEventListener('connectionstatechange', () => {
             if (peerConnection.connectionState === 'connected') {
                 transcriptTextElement.textContent = historicalTranscript;
                 segmentsTableBody.innerHTML = '';
                 transcriptionStartTime = performance.now();
+            } else if (peerConnection.connectionState === 'disconnected' || 
+                       peerConnection.connectionState === 'failed' || 
+                       peerConnection.connectionState === 'closed') {
+                // Clean up audio tracks when connection ends
+                stream.getTracks().forEach(track => track.stop());
             }
             updateButtonState();
         });
@@ -491,6 +545,7 @@ function handleServerUpdate(data) {
         if (segments.length > 0) {
             document.getElementById('no-file-message-table-record').style.display = 'none';
         }
+
         currentSegments = segments; // Store segments globally
 
         // Update segments table
@@ -518,10 +573,12 @@ function handleServerUpdate(data) {
                 const btn = e.currentTarget;
                 const start = parseFloat(btn.getAttribute('data-start'));
                 const end = parseFloat(btn.getAttribute('data-end'));
+                console.log(`Playing segment from ${start} to ${end}`);
                 playSegment(start, end);
             });
         });
 
+        console.log("Received segments:", segments);
         updateTimeline(segments);
         showResetButtonIfNeeded();
 
@@ -742,3 +799,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 window.showResetButtonIfNeeded = showResetButtonIfNeeded;
 window.addRegionsToRecordedWaveform = addRegionsToRecordedWaveform;
+
+// Expose recording timer controls for wavesurfers.js
+window.startRecordingTimer = startRecordingTimer;
+window.stopRecordingTimer = stopRecordingTimer;
