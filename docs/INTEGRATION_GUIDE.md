@@ -195,7 +195,7 @@ class MyCustomASR(ASRBase):
 
 ### Step 2: Create a ModelLoader
 
-Create a loader that knows how to create your ASR backend and wrap it with OnlineASRProcessor.
+Create a loader that knows how to create your ASR backend and wrap it with OnlineASRProcessor. We peovide a complete example in integrating whisper-timestamped in the ```whisper_timestamped.md```
 
 **Example: `my_model_loader.py`**
 

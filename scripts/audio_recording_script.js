@@ -34,7 +34,7 @@ const defaultConfig = {
     "model": "tiny",
     "lan": "auto",
     "task": "transcribe",
-    "backend": "whisper_timestamped",
+    "backend": "whisper",
     "min_chunk_size": 1.0,
     "buffer_trimming": "segment",
     "buffer_trimming_sec": 10.0
