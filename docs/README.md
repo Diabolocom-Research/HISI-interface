@@ -58,7 +58,6 @@ Testing documentation covering:
 
 ## Supported ASR Backends
 
-- **Whisper Timestamped** (word-level timestamps, non-permissive license)
 - **MLX Whisper** (Apple Silicon optimized, word-level timestamps)
 - **Whisper (OpenAI official)** (segment-level timestamps, permissive license)
 
@@ -72,8 +71,6 @@ In your configuration (e.g., `ASRConfig`):
 backend = "whisper"  # For standard OpenAI Whisper
 # or
 backend = "mlx_whisper"  # For MLX Whisper
-# or
-backend = "whisper_timestamped"  # For Whisper Timestamped
 ```
 
 ## Getting Started

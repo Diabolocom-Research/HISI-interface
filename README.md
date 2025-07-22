@@ -16,7 +16,6 @@ A modern, modular real-time Automatic Speech Recognition (ASR) interface with su
 
 ## Supported ASR Backends
 
-- **Whisper Timestamped** (word-level timestamps, non-permissive license)
 - **MLX Whisper** (Apple Silicon optimized, word-level timestamps)
 - **Whisper (OpenAI official)** (segment-level timestamps, permissive license)
 
