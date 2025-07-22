@@ -679,16 +679,11 @@ function addRegionsToRecordedWaveform() {
  * Stops the WebRTC connection and finalizes the recording process.
  */
 function stop() {
-    
-    console.log("🐛 stop");
     // Call backend to reset handler state
     fetch('reset_handler', { method: 'POST' })
         .then(response => response.json())
         .then(data => console.log('Backend handler reset:', data))
         .catch(err => console.warn('Failed to reset backend handler:', err));
-
-    console.log("🐛 reset handler called");
-
 
     if (peerConnection) {
         peerConnection.getSenders().forEach(sender => sender.track?.stop());

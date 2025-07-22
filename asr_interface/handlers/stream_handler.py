@@ -10,7 +10,7 @@ from fastrtc import AdditionalOutputs, StreamHandler
 from ..core.protocols import ASRProcessor
 from ..core.store import ASRComponentsStore
 
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 
 
 class RealTimeASRHandler(StreamHandler):
@@ -142,7 +142,6 @@ class RealTimeASRHandler(StreamHandler):
         Returns:
             AdditionalOutputs: A data structure containing the full transcript and segments
         """
-        logger.info("here")
         if not self.asr_processor:
             return AdditionalOutputs("", np.array([], dtype=np.float32), [])
 
@@ -163,10 +162,6 @@ class RealTimeASRHandler(StreamHandler):
                 self.accumulated_transcript += separator + text_delta.strip()
             elif text_delta.strip():
                 self.accumulated_transcript = text_delta.strip()
-
-        logger.info(
-            f"Handler [{self.handler_id}] - Segments: {self.segments}", flush=True
-        )
 
         return AdditionalOutputs(
             self.accumulated_transcript, self.full_audio, self.segments

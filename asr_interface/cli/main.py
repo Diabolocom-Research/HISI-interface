@@ -23,15 +23,6 @@ app = typer.Typer(
 console = Console()
 
 
-class NoCacheStaticFiles(StaticFiles):
-    async def get_response(self, path: str, scope):
-        response: Response = await super().get_response(path, scope)
-        response.headers["Cache-Control"] = "no-store"
-        response.headers["Pragma"] = "no-cache"
-        response.headers["Expires"] = "0"
-        return response
-
-
 def setup_logging(verbose: bool = False) -> None:
     """
     Setup logging configuration.
@@ -95,7 +86,6 @@ def serve(
             port=port,
             reload=reload,
             log_level="debug" if verbose else "info",
-            log_config=None,
         )
 
     except KeyboardInterrupt:
