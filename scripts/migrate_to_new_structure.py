@@ -197,14 +197,14 @@ python real_time_asr_server.py
 
 #### New
 ```bash
-asr-interface serve
+hisi-interface serve
 ```
 
 ## Breaking Changes
 
 1. **Import Paths**: All imports now use the `asr_interface` package
 2. **Configuration**: Use `pyproject.toml` instead of `requirements.txt`
-3. **CLI**: Use the new `asr-interface` command instead of running Python files directly
+3. **CLI**: Use the new `hisi-interface` command instead of running Python files directly
 
 ## Getting Help
 

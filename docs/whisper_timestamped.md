@@ -1,6 +1,6 @@
 # Integrating Whisper Timestamped Backend
 
-This guide provides a step-by-step walkthrough for integrating the **Whisper Timestamped** backend into the ASR Interface. Whisper Timestamped provides word-level timestamps for accurate real-time transcription.
+This guide provides a step-by-step walkthrough for integrating the **Whisper Timestamped** backend into the HISI Interface. Whisper Timestamped provides word-level timestamps for accurate real-time transcription.
 
 ---
 
@@ -164,4 +164,4 @@ For more troubleshooting tips, see [INTEGRATION_GUIDE.md](INTEGRATION_GUIDE.md#t
 
 ## Summary
 
-The Whisper Timestamped backend enables accurate, word-level timestamped transcription in real time. By following this guide, you can quickly integrate and use this backend in the ASR Interface. For more advanced customization, refer to the main integration guide and existing backend examples.
+The Whisper Timestamped backend enables accurate, word-level timestamped transcription in real time. By following this guide, you can quickly integrate and use this backend in the HISI Interface. For more advanced customization, refer to the main integration guide and existing backend examples.

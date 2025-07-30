@@ -14,7 +14,7 @@ from ..web.server import create_app
 
 # Create CLI app
 app = typer.Typer(
-    name="asr-interface",
+    name="hisi-interface",
     help="Real-time Automatic Speech Recognition Interface",
     add_completion=False,
 )
@@ -149,9 +149,11 @@ def info() -> None:
     console.print("• Modular architecture for custom ASR backends")
     console.print()
     console.print("[bold]Usage:[/bold]")
-    console.print("• Start server: asr-interface serve")
-    console.print("• Transcribe file: asr-interface transcribe <file>")
-    console.print("• Show help: asr-interface --help")
+    console.print("• Start server: hisi-interface serve")
+
+
+console.print("• Transcribe file: hisi-interface transcribe <file>")
+console.print("• Show help: hisi-interface --help")
 
 
 def main() -> None:

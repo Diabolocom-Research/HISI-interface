@@ -1,4 +1,4 @@
-# ASR Interface
+# HISI Interface
 
 A modern, modular real-time Automatic Speech Recognition (ASR) interface with support for various ASR backends, built with FastAPI and WebRTC.
 
@@ -35,8 +35,8 @@ To use the standard OpenAI Whisper backend, set `backend: "whisper"` in your con
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-username/asr-interface.git
-cd asr-interface
+git clone https://github.com/Diabolocom-Research/HISI-interface.git
+cd HISI-interface
 
 # Install uv if you haven't already
 pip install uv
@@ -55,7 +55,7 @@ uv pip install -e .
 
 ```bash
 # Using the CLI
-asr-interface serve
+hisi-interface serve
 
 # Or with uvicorn
 uvicorn asr_interface.web.server:create_app --reload
@@ -70,7 +70,7 @@ uvicorn asr_interface.web.server:create_app --reload
 
 ## Architecture
 
-The ASR Interface follows a clean, modular architecture based on the legacy whisper-streaming system:
+The HISI Interface follows a clean, modular architecture based on the legacy whisper-streaming system:
 
 ```
 asr_interface/
@@ -111,11 +111,11 @@ asr_interface/
 
 ```bash
 # Start web server
-asr-interface serve [--host HOST] [--port PORT] [--reload]
+hisi-interface serve [--host HOST] [--port PORT] [--reload]
 
 
 # Show project info
-asr-interface info
+hisi-interface info
 ```
 
 ## Adding Custom ASR Backends
@@ -242,7 +242,7 @@ mypy asr_interface
 ### Project Structure
 
 ```
-asr-interface/
+HISI-interface/
 ├── asr_interface/          # Main package
 │   ├── core/              # Core protocols and configuration
 │   ├── backends/          # ASR model loaders
@@ -258,7 +258,7 @@ asr-interface/
 
 ## Interface
 
-![ASR Interface Screenshot](assets/asr_interface_screenshot.png)
+![HISI Interface Screenshot](assets/asr_interface_screenshot.png)
 
 ## Contributing
 
@@ -331,5 +331,5 @@ pip install -r requirements.txt --force-reinstall
 ## Support
 
 - 📖 [Documentation](docs/README.md)
-- 🐛 [Issue Tracker](https://github.com/your-username/asr-interface/issues)
-- 💬 [Discussions](https://github.com/your-username/asr-interface/discussions)
+- 🐛 [Issue Tracker](https://github.com/Diabolocom-Research/HISI-interface/issues)
+- 💬 [Discussions](https://github.com/Diabolocom-Research/HISI-interface/discussions)

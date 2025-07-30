@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "asr-interface"
+name = "hisi-interface"
 version = "0.1.0"
 description = "Real-time Automatic Speech Recognition (ASR) interface with modular architecture"
 readme = "README.md"
@@ -62,11 +62,11 @@ dev = [
 
 
 [project.urls]
-Homepage = "https://github.com/Diabolocom-Research/ASR-interface"
-Repository = "https://github.com/Diabolocom-Research/ASR-interface"
+Homepage = "https://github.com/Diabolocom-Research/HISI-interface"
+Repository = "https://github.com/Diabolocom-Research/HISI-interface"
 
 [project.scripts]
-asr-interface = "asr_interface.cli:main"
+hisi-interface = "asr_interface.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["asr_interface"]

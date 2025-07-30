@@ -1,6 +1,6 @@
-# ASR Interface Documentation
+# HISI Interface Documentation
 
-This directory contains comprehensive documentation for the ASR Interface project.
+This directory contains comprehensive documentation for the HISI Interface project.
 
 ## Documentation Structure
 

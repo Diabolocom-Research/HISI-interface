@@ -1,6 +1,6 @@
 # ASR Backend Integration Guide
 
-This comprehensive guide provides everything you need to integrate your own ASR models and engines into the ASR Interface. The system uses a modular, protocol-based architecture that makes it easy to add new backends without modifying the core server logic.
+This comprehensive guide provides everything you need to integrate your own ASR models and engines into the HISI Interface. The system uses a modular, protocol-based architecture that makes it easy to add new backends without modifying the core server logic.
 
 ## Table of Contents
 
@@ -36,7 +36,7 @@ This comprehensive guide provides everything you need to integrate your own ASR 
 
 ## Architecture Overview
 
-The ASR Interface uses a modular architecture based on the legacy whisper-streaming system:
+The HISI Interface uses a modular architecture based on the legacy whisper-streaming system:
 
 ### Core Components
 
@@ -746,4 +746,4 @@ class MyCustomProcessor(ASRProcessor):
 - 💬 **Discussions**: Ask questions in GitHub Discussions
 - 🔧 **Examples**: Look at existing backends for reference
 
-The ASR Interface is designed to be modular and extensible. With this guide, you should be able to integrate any ASR model or engine quickly and efficiently!
+The HISI Interface is designed to be modular and extensible. With this guide, you should be able to integrate any ASR model or engine quickly and efficiently!
